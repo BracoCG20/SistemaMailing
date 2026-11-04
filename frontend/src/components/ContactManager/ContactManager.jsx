@@ -12,7 +12,10 @@ export default function ContactManager({
 	const [filtro, setFiltro] = useState("");
 	const [textPaste, setTextPaste] = useState("");
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [loteSize, setLoteSize] = useState(1200);
+
+	// NUEVOS CONTROLES PARA AVANCE INTELIGENTE DE LOTES
+	const [loteStart, setLoteStart] = useState(1);
+	const [loteSize, setLoteSize] = useState(100);
 
 	const cargarContactos = async () => {
 		try {
@@ -140,12 +143,27 @@ export default function ContactManager({
 		}
 	};
 
+	// NUEVA LÓGICA: SELECCIÓN AVANZADA POR RANGOS
 	const handleSelectLote = () => {
+		const inicio = parseInt(loteStart, 10) || 1;
 		const cantidad = parseInt(loteSize, 10) || 0;
-		if (cantidad <= 0) return toast.error("Ingresa una cantidad válida");
-		const lote = filtrados.slice(0, cantidad);
+
+		if (inicio <= 0 || cantidad <= 0)
+			return toast.error("Ingresa valores válidos");
+
+		const indexInicio = inicio - 1; // Convertir a índice de array (0-based)
+		const lote = filtrados.slice(indexInicio, indexInicio + cantidad);
+
+		if (lote.length === 0)
+			return toast.warning("No hay más contactos en ese rango.");
+
 		setSelectedContacts(lote);
-		toast.success(`${lote.length} contactos seleccionados en este lote.`);
+		toast.success(
+			`Seleccionados del ${inicio} al ${inicio + lote.length - 1}.`,
+		);
+
+		// Auto-avanzar el contador para el siguiente lote
+		setLoteStart(inicio + lote.length);
 	};
 
 	const handleSelectOne = (contacto, checked) => {
@@ -202,16 +220,52 @@ export default function ContactManager({
 						Todos
 					</label>
 
-					<div className={styles.batchSelector}>
+					{/* PANEL DE LOTES MEJORADO */}
+					<div
+						className={styles.batchSelector}
+						style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+					>
+						<span
+							style={{
+								fontSize: "0.75rem",
+								fontWeight: "600",
+								color: "var(--muted-foreground)",
+							}}
+						>
+							Desde:
+						</span>
+						<input
+							type='number'
+							className='input'
+							value={loteStart}
+							onChange={(e) => setLoteStart(e.target.value)}
+							title='Posición de inicio (Ej: 1)'
+							style={{ width: "65px", padding: "0.25rem", textAlign: "center" }}
+						/>
+						<span
+							style={{
+								fontSize: "0.75rem",
+								fontWeight: "600",
+								color: "var(--muted-foreground)",
+							}}
+						>
+							Cant:
+						</span>
 						<input
 							type='number'
 							className='input'
 							value={loteSize}
 							onChange={(e) => setLoteSize(e.target.value)}
-							title='Cantidad a enviar'
+							title='Cantidad a seleccionar'
+							style={{ width: "65px", padding: "0.25rem", textAlign: "center" }}
 						/>
-						<button className='btn btn-outline' onClick={handleSelectLote}>
-							<ListChecks size={14} /> Seleccionar Lote
+						<button
+							className='btn btn-outline'
+							onClick={handleSelectLote}
+							style={{ padding: "0.25rem 0.5rem" }}
+						>
+							<ListChecks size={14} style={{ marginRight: "0.25rem" }} />{" "}
+							Seleccionar
 						</button>
 					</div>
 
@@ -221,7 +275,7 @@ export default function ContactManager({
 							onClick={eliminarSeleccionados}
 							disabled={isProcessing}
 						>
-							<Trash2 size={14} /> Eliminar ({selectedContacts.length})
+							<Trash2 size={14} /> ({selectedContacts.length})
 						</button>
 					)}
 				</div>
@@ -256,18 +310,36 @@ export default function ContactManager({
 						No hay resultados.
 					</p>
 				) : (
-					filtrados.map((c) => {
+					filtrados.map((c, index) => {
 						const isChecked = selectedContacts.some(
 							(sc) => sc.email === c.email,
 						);
 						return (
 							<div key={c.email} className={styles.contactItem}>
-								<input
-									type='checkbox'
-									checked={isChecked}
-									onChange={(e) => handleSelectOne(c, e.target.checked)}
-									style={{ cursor: "pointer", marginTop: "2px" }}
-								/>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "0.75rem",
+									}}
+								>
+									<span
+										style={{
+											fontSize: "0.65rem",
+											color: "var(--muted-foreground)",
+											width: "25px",
+											textAlign: "right",
+										}}
+									>
+										{index + 1}.
+									</span>
+									<input
+										type='checkbox'
+										checked={isChecked}
+										onChange={(e) => handleSelectOne(c, e.target.checked)}
+										style={{ cursor: "pointer" }}
+									/>
+								</div>
 
 								<div
 									className={styles.contactInfo}
@@ -286,7 +358,6 @@ export default function ContactManager({
 								<button
 									className={styles.deleteBtn}
 									onClick={() => eliminarContacto(c.email)}
-									title='Eliminar usuario'
 								>
 									<Trash2 size={14} />
 								</button>
