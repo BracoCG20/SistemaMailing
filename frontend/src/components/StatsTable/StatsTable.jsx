@@ -1,4 +1,3 @@
-// frontend/src/components/StatsTable/StatsTable.jsx
 import { useState, useEffect, Fragment } from "react";
 import {
 	RefreshCcw,
@@ -17,12 +16,10 @@ export default function StatsTable() {
 	const [detalles, setDetalles] = useState([]);
 	const [loading, setLoading] = useState(true);
 
-	// Estados de paginación
 	const [pageResumen, setPageResumen] = useState(1);
 	const [pageDetalle, setPageDetalle] = useState(1);
 	const itemsPerPage = 10;
 
-	// Estado para acordeón (Campañas expandidas)
 	const [expandedCampaigns, setExpandedCampaigns] = useState(new Set());
 
 	const cargarDatos = async () => {
@@ -46,7 +43,6 @@ export default function StatsTable() {
 		cargarDatos();
 	}, []);
 
-	// Manejador limpio para cambiar de pestaña y resetear paginación al mismo tiempo
 	const handleTabChange = (tab) => {
 		setActiveTab(tab);
 		setPageResumen(1);
@@ -72,7 +68,6 @@ export default function StatsTable() {
 		});
 	};
 
-	// --- LÓGICA DE AGRUPACIÓN (PESTAÑA 1) ---
 	const statsAgrupados = stats.reduce((acc, curr) => {
 		if (!acc[curr.campana]) {
 			acc[curr.campana] = { totalClicks: 0, enlaces: [] };
@@ -89,7 +84,6 @@ export default function StatsTable() {
 		}),
 	);
 
-	// --- LÓGICA DE PAGINACIÓN ---
 	const totalPagesResumen = Math.ceil(arrayResumen.length / itemsPerPage) || 1;
 	const paginatedResumen = arrayResumen.slice(
 		(pageResumen - 1) * itemsPerPage,
@@ -102,7 +96,6 @@ export default function StatsTable() {
 		pageDetalle * itemsPerPage,
 	);
 
-	// --- LÓGICA DE EXPORTACIÓN A EXCEL ---
 	const exportarExcel = () => {
 		try {
 			const wb = XLSX.utils.book_new();
@@ -123,20 +116,29 @@ export default function StatsTable() {
 				XLSX.utils.book_append_sheet(wb, ws, "Resumen Clics");
 				XLSX.writeFile(wb, "Resumen_Clics_Mailing.xlsx");
 			} else {
+				// AÑADIDO NOMBRE ENLACE AL REPORTE EXCEL
 				const dataPlana = detalles.map((d) => [
 					formatearFecha(d.fecha),
 					d.email,
 					d.campana,
+					d.nombre_enlace || "-",
 					d.original_url,
 				]);
 				dataPlana.unshift([
 					"Fecha y Hora",
 					"Usuario (Email)",
 					"Campaña",
+					"Artista / Nombre",
 					"Enlace Visitado",
 				]);
 				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
-				ws["!cols"] = [{ wch: 20 }, { wch: 30 }, { wch: 25 }, { wch: 50 }];
+				ws["!cols"] = [
+					{ wch: 20 },
+					{ wch: 30 },
+					{ wch: 25 },
+					{ wch: 25 },
+					{ wch: 50 },
+				];
 				XLSX.utils.book_append_sheet(wb, ws, "Detalle Usuarios");
 				XLSX.writeFile(wb, "Detalle_Usuarios_Clics.xlsx");
 			}
@@ -299,13 +301,14 @@ export default function StatsTable() {
 									<th>Fecha y Hora</th>
 									<th>Usuario (Email)</th>
 									<th>Campaña</th>
+									<th>Artista / Nombre</th> {/* CABECERA AÑADIDA */}
 									<th>Enlace Visitado</th>
 								</tr>
 							</thead>
 							<tbody>
 								{paginatedDetalle.length === 0 ? (
 									<tr>
-										<td colSpan='4' style={{ textAlign: "center" }}>
+										<td colSpan='5' style={{ textAlign: "center" }}>
 											No hay registros detallados.
 										</td>
 									</tr>
@@ -319,12 +322,26 @@ export default function StatsTable() {
 												<strong>{row.email}</strong>
 											</td>
 											<td>{row.campana}</td>
+
+											{/* CELDA AÑADIDA */}
+											<td>
+												<span
+													style={{ fontWeight: 600, color: "var(--primary)" }}
+												>
+													{row.nombre_enlace || "-"}
+												</span>
+											</td>
+
 											<td>
 												<a
 													href={row.original_url}
 													target='_blank'
 													rel='noreferrer'
-													style={{ color: "#0066cc" }}
+													style={{
+														color: "#0066cc",
+														fontSize: "0.75rem",
+														wordBreak: "break-all",
+													}}
 												>
 													{row.original_url}
 												</a>

@@ -23,7 +23,6 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 let estadoEnvio = { activo: false, total: 0, enviados: 0, errores: 0, log: [] };
 
-// Inicialización de la BD
 const initDB = async () => {
 	try {
 		await pool.query(`
@@ -34,6 +33,10 @@ const initDB = async () => {
         campana TEXT,
         fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      
+      /* AÑADIR LA NUEVA COLUMNA SI NO EXISTE */
+      ALTER TABLE clicks ADD COLUMN IF NOT EXISTS nombre_enlace VARCHAR(255);
+      
       CREATE TABLE IF NOT EXISTS contactos (
         id SERIAL PRIMARY KEY,
         nombre VARCHAR(255),
@@ -156,10 +159,19 @@ app.post("/api/send-background", async (req, res) => {
 					$("a").each((idx, link) => {
 						const originalUrl = $(link).attr("href");
 						if (originalUrl && originalUrl.startsWith("http")) {
+							// EXTRAER EL TEXTO O EL ATRIBUTO ALT DE LA IMAGEN
+							let textName = $(link).text().trim();
+							if (!textName) {
+								textName =
+									$(link).find("img").attr("alt") || "Enlace sin nombre";
+							}
+
 							const trackUrl = new URL("/track", BASE_URL);
 							trackUrl.searchParams.append("url", originalUrl);
 							trackUrl.searchParams.append("email", email);
 							trackUrl.searchParams.append("campana", campana);
+							trackUrl.searchParams.append("nombre_enlace", textName); // <- SE ENVÍA EL DATO
+
 							$(link).attr("href", trackUrl.toString());
 						}
 					});
@@ -242,12 +254,14 @@ app.get("/api/reporte-envios", async (req, res) => {
 });
 
 app.get("/track", async (req, res) => {
-	const { url, email, campana } = req.query;
-	if (!url) return res.redirect("https://www.google.com"); // Fallback
+	// RECUPERAR LA NUEVA VARIABLE DESDE LA URL
+	const { url, email, campana, nombre_enlace } = req.query;
+	if (!url) return res.redirect("https://www.google.com");
 	try {
 		await pool.query(
-			`INSERT INTO clicks (email, original_url, campana) VALUES ($1, $2, $3)`,
-			[email, url, campana],
+			// INSERTARLA EN LA BASE DE DATOS
+			`INSERT INTO clicks (email, original_url, campana, nombre_enlace) VALUES ($1, $2, $3, $4)`,
+			[email, url, campana, nombre_enlace || "Enlace"],
 		);
 	} catch (err) {
 		console.error(err.message);
@@ -274,7 +288,8 @@ app.get("/api/clicks-detail", async (req, res) => {
 		res.json(
 			(
 				await pool.query(
-					`SELECT email, original_url, campana, fecha FROM clicks ORDER BY fecha DESC`,
+					// TRAER LA NUEVA COLUMNA AL FRONTEND
+					`SELECT email, original_url, campana, fecha, nombre_enlace FROM clicks ORDER BY fecha DESC`,
 				)
 			).rows,
 		);
