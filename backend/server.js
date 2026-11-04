@@ -315,10 +315,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 	}
 });
 
-app.get("*", (req, res) => {
-	res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
-});
-
 // --- ENDPOINT TEMPORAL PARA LIMPIAR DATOS DE PRUEBA ---
 app.get("/api/limpiar-bd", async (req, res) => {
 	try {
@@ -333,17 +329,20 @@ app.get("/api/limpiar-bd", async (req, res) => {
 
 		res.send(`
             <h1 style="color: green; font-family: sans-serif; text-align: center; margin-top: 50px;">
-                ✅ Datos de prueba eliminados con éxito.
+			✅ Datos de prueba eliminados con éxito.
             </h1>
             <p style="text-align: center; font-family: sans-serif;">
-                Todo el historial y clics están en cero. <br>
-                <b>¡IMPORTANTE: Por seguridad, borra este endpoint de tu server.js ahora mismo y vuelve a subir el archivo!</b>
+			Todo el historial y clics están en cero. <br>
+			<b>¡IMPORTANTE: Por seguridad, borra este endpoint de tu server.js ahora mismo y vuelve a subir el archivo!</b>
             </p>
-        `);
+			`);
 	} catch (err) {
 		res.status(500).send("Error limpiando la BD: " + err.message);
 	}
 });
 
+app.get("*", (req, res) => {
+	res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend ejecutándose en puerto ${PORT}`));
