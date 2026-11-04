@@ -107,7 +107,7 @@ function App() {
 						}}
 					>
 						<LayoutDashboard size={24} color='var(--primary)' />
-						MailingPro
+						Mailing
 					</div>
 					{/* Botón cerrar solo visible en móvil (manejado por css o render condicional) */}
 					<button
