@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { Upload, Trash2, Search } from "lucide-react";
+import { Upload, Trash2, Search, Users } from "lucide-react";
 import styles from "./ContactManager.module.scss";
 
 export default function ContactManager({
@@ -94,12 +94,40 @@ export default function ContactManager({
 		try {
 			await fetch(`/api/contactos/${email}`, { method: "DELETE" });
 			toast.success("Contacto eliminado");
-			// Quitarlo de los seleccionados si estaba
 			setSelectedContacts((prev) => prev.filter((c) => c.email !== email));
 			cargarContactos();
 		} catch {
 			toast.error("Error al eliminar");
 		}
+	};
+
+	// NUEVO: Función para eliminar todos los seleccionados
+	const eliminarSeleccionados = async () => {
+		if (
+			!confirm(
+				`¿Estás seguro de eliminar los ${selectedContacts.length} usuarios seleccionados?`,
+			)
+		)
+			return;
+
+		setIsProcessing(true);
+		toast.info("Eliminando usuarios...");
+
+		try {
+			// Eliminamos de forma masiva ejecutando las peticiones en paralelo
+			await Promise.all(
+				selectedContacts.map((c) =>
+					fetch(`/api/contactos/${c.email}`, { method: "DELETE" }),
+				),
+			);
+
+			toast.success("Usuarios eliminados correctamente.");
+			setSelectedContacts([]);
+			cargarContactos();
+		} catch {
+			toast.error("Error al eliminar algunos usuarios.");
+		}
+		setIsProcessing(false);
 	};
 
 	const handleSelectAll = (e) => {
@@ -160,44 +188,42 @@ export default function ContactManager({
 			</div>
 
 			<div className={styles.toolbar}>
-				<label
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "0.5rem",
-						fontSize: "0.875rem",
-					}}
-				>
-					<input
-						type='checkbox'
-						checked={todosSeleccionados}
-						onChange={handleSelectAll}
-					/>
-					Seleccionar Todos
-				</label>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						position: "relative",
-					}}
-				>
-					<Search
-						size={16}
-						style={{
-							position: "absolute",
-							left: "0.5rem",
-							color: "var(--muted-foreground)",
-						}}
-					/>
-					<input
-						type='text'
-						className='input'
-						placeholder='Buscar...'
-						style={{ paddingLeft: "2rem", width: "200px" }}
-						value={filtro}
-						onChange={(e) => setFiltro(e.target.value)}
-					/>
+				<div className={styles.toolbarLeft}>
+					<label className={styles.selectAllLabel}>
+						<input
+							type='checkbox'
+							checked={todosSeleccionados}
+							onChange={handleSelectAll}
+						/>
+						Seleccionar Todos
+					</label>
+					{/* Botón de eliminación masiva */}
+					{selectedContacts.length > 0 && (
+						<button
+							className={styles.bulkDeleteBtn}
+							onClick={eliminarSeleccionados}
+							disabled={isProcessing}
+						>
+							<Trash2 size={14} /> Eliminar ({selectedContacts.length})
+						</button>
+					)}
+				</div>
+
+				<div className={styles.toolbarRight}>
+					{/* Contador Total */}
+					<span className={styles.totalBadge}>
+						<Users size={14} /> {contactos.length} Totales
+					</span>
+					<div className={styles.searchBox}>
+						<Search size={14} />
+						<input
+							type='text'
+							className='input'
+							placeholder='Buscar...'
+							value={filtro}
+							onChange={(e) => setFiltro(e.target.value)}
+						/>
+					</div>
 				</div>
 			</div>
 
@@ -208,6 +234,7 @@ export default function ContactManager({
 							textAlign: "center",
 							color: "var(--muted-foreground)",
 							marginTop: "2rem",
+							fontSize: "0.75rem",
 						}}
 					>
 						No hay resultados.
@@ -219,28 +246,34 @@ export default function ContactManager({
 						);
 						return (
 							<div key={c.email} className={styles.contactItem}>
-								<label className={styles.label}>
-									<input
-										type='checkbox'
-										checked={isChecked}
-										onChange={(e) => handleSelectOne(c, e.target.checked)}
-									/>
-									{c.nombre ? (
-										<>
-											{c.nombre}{" "}
+								<input
+									type='checkbox'
+									checked={isChecked}
+									onChange={(e) => handleSelectOne(c, e.target.checked)}
+									style={{ cursor: "pointer", marginTop: "2px" }}
+								/>
+
+								{/* Contenedor Clickable de la Información */}
+								<div
+									className={styles.contactInfo}
+									onClick={() => handleSelectOne(c, !isChecked)}
+								>
+									<span className={styles.contactName}>
+										{c.nombre || (
 											<span style={{ color: "var(--muted-foreground)" }}>
-												({c.email})
+												Sin Nombre
 											</span>
-										</>
-									) : (
-										c.email
-									)}
-								</label>
+										)}
+									</span>
+									<span className={styles.contactEmail}>{c.email}</span>
+								</div>
+
 								<button
 									className={styles.deleteBtn}
 									onClick={() => eliminarContacto(c.email)}
+									title='Eliminar usuario'
 								>
-									<Trash2 size={16} />
+									<Trash2 size={14} />
 								</button>
 							</div>
 						);
