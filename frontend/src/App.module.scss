@@ -2,6 +2,9 @@
 	display: flex;
 	min-height: 100vh;
 	background-color: var(--background);
+	width: 100%;
+	max-width: 100vw;
+	overflow-x: hidden; /* Corta cualquier desborde lateral */
 }
 
 .sidebar {
@@ -42,6 +45,8 @@
 	overflow-y: auto;
 	height: 100vh;
 	margin-left: 260px;
+	min-width: 0; /* Corrección crítica de flexbox para móviles */
+	max-width: 100%;
 
 	@media (max-width: 768px) {
 		margin-left: 0;
@@ -65,7 +70,8 @@
 	gap: 2rem;
 
 	@media (max-width: 768px) {
-		grid-template-columns: 1fr;
+		/* En móviles, la columna debe bajar a minmax(0) para no romper la pantalla */
+		grid-template-columns: minmax(0, 1fr);
 		gap: 1.5rem;
 	}
 }

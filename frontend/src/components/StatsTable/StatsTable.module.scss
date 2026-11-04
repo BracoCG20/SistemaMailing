@@ -87,6 +87,7 @@
 	font-weight: bold;
 	display: inline-block;
 }
+/* Reemplaza desde la línea 81 de StatsTable.module.scss hasta el final */
 .pagination {
 	display: flex;
 	justify-content: space-between;
@@ -96,9 +97,21 @@
 	border-top: 1px solid var(--border);
 	font-size: 0.875rem;
 	color: var(--muted-foreground);
+	flex-wrap: wrap;
+	gap: 1rem;
+
+	@media (max-width: 768px) {
+		flex-direction: column;
+		align-items: flex-start;
+	}
 }
 .pageControls {
 	display: flex;
 	gap: 0.5rem;
 	align-items: center;
+
+	@media (max-width: 768px) {
+		width: 100%;
+		justify-content: space-between;
+	}
 }
