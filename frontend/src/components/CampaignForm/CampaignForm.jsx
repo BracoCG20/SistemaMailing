@@ -79,7 +79,7 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 
 			toast.success("Envío en segundo plano iniciado.");
 			checkStatus(); // Iniciar polling
-		} catch (e) {
+		} catch {
 			toast.error("Error de conexión con el servidor.");
 			setIsSending(false);
 		}

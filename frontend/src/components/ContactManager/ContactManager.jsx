@@ -18,16 +18,17 @@ export default function ContactManager({
 			const res = await fetch("/api/contactos");
 			const data = await res.json();
 			setContactos(data);
-		} catch (e) {
+		} catch {
 			toast.error("Error al cargar contactos de la base de datos.");
 		}
 	};
 
 	useEffect(() => {
+		// eslint-disable-next-line
 		cargarContactos();
 	}, []);
 
-	const procesarImportacion = async (e) => {
+	const procesarImportacion = async () => {
 		const file = document.getElementById("fileExcel").files[0];
 		let nuevosContactos = [];
 		setIsProcessing(true);
@@ -82,7 +83,7 @@ export default function ContactManager({
 			document.getElementById("fileExcel").value = "";
 			setTextPaste("");
 			cargarContactos();
-		} catch (error) {
+		} catch {
 			toast.error("Error al procesar y guardar contactos.");
 		}
 		setIsProcessing(false);
@@ -96,7 +97,7 @@ export default function ContactManager({
 			// Quitarlo de los seleccionados si estaba
 			setSelectedContacts((prev) => prev.filter((c) => c.email !== email));
 			cargarContactos();
-		} catch (e) {
+		} catch {
 			toast.error("Error al eliminar");
 		}
 	};
