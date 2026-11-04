@@ -105,7 +105,7 @@ function App() {
 					}}
 				>
 					<LayoutDashboard size={24} color='var(--primary)' />
-					MailingPro
+					Mailing
 				</div>
 
 				<nav
