@@ -41,11 +41,11 @@
 .table {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: 0.875rem;
+	font-size: 0.75rem; /* Ajustado al estilo minimalista */
 
 	th,
 	td {
-		padding: 0.75rem 1rem;
+		padding: 0.5rem 1rem; /* Padding reducido para más limpieza visual */
 		border-bottom: 1px solid var(--border);
 		text-align: left;
 	}
@@ -70,7 +70,7 @@
 .subTable {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: 0.8125rem;
+	font-size: 0.75rem; /* Ajustado al estilo minimalista */
 	td {
 		padding: 0.5rem;
 		border-bottom: 1px dashed var(--border);
@@ -87,7 +87,6 @@
 	font-weight: bold;
 	display: inline-block;
 }
-/* Reemplaza desde la línea 81 de StatsTable.module.scss hasta el final */
 .pagination {
 	display: flex;
 	justify-content: space-between;
@@ -95,7 +94,7 @@
 	padding: 1rem;
 	background-color: var(--card);
 	border-top: 1px solid var(--border);
-	font-size: 0.875rem;
+	font-size: 0.75rem; /* Ajustado al estilo minimalista */
 	color: var(--muted-foreground);
 	flex-wrap: wrap;
 	gap: 1rem;

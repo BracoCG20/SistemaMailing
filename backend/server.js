@@ -1,3 +1,4 @@
+//backend/server.js
 import "dotenv/config";
 import express from "express";
 import nodemailer from "nodemailer";
@@ -301,7 +302,11 @@ app.get("/api/clicks-detail", async (req, res) => {
 		res.json(
 			(
 				await pool.query(
-					`SELECT email, original_url, campana, fecha, nombre_enlace FROM clicks ORDER BY fecha DESC`,
+					// NUEVO: JOIN con tabla contactos para extraer el nombre del usuario
+					`SELECT c.email, co.nombre as usuario_nombre, c.original_url, c.campana, c.fecha, c.nombre_enlace 
+                     FROM clicks c 
+                     LEFT JOIN contactos co ON c.email = co.email 
+                     ORDER BY c.fecha DESC`,
 				)
 			).rows,
 		);

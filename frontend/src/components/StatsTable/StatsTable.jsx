@@ -116,9 +116,9 @@ export default function StatsTable() {
 				XLSX.utils.book_append_sheet(wb, ws, "Resumen Clics");
 				XLSX.writeFile(wb, "Resumen_Clics_Mailing.xlsx");
 			} else {
-				// AÑADIDO NOMBRE ENLACE AL REPORTE EXCEL
 				const dataPlana = detalles.map((d) => [
 					formatearFecha(d.fecha),
+					d.usuario_nombre || "Sin Nombre",
 					d.email,
 					d.campana,
 					d.nombre_enlace || "-",
@@ -126,7 +126,8 @@ export default function StatsTable() {
 				]);
 				dataPlana.unshift([
 					"Fecha y Hora",
-					"Usuario (Email)",
+					"Usuario",
+					"Correo",
 					"Campaña",
 					"Artista / Nombre",
 					"Enlace Visitado",
@@ -134,6 +135,7 @@ export default function StatsTable() {
 				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
 				ws["!cols"] = [
 					{ wch: 20 },
+					{ wch: 25 },
 					{ wch: 30 },
 					{ wch: 25 },
 					{ wch: 25 },
@@ -299,16 +301,17 @@ export default function StatsTable() {
 							<thead>
 								<tr>
 									<th>Fecha y Hora</th>
-									<th>Usuario (Email)</th>
+									<th>Usuario</th>
+									<th>Correo</th>
 									<th>Campaña</th>
-									<th>Artista / Nombre</th> {/* CABECERA AÑADIDA */}
+									<th>Artista / Nombre</th>
 									<th>Enlace Visitado</th>
 								</tr>
 							</thead>
 							<tbody>
 								{paginatedDetalle.length === 0 ? (
 									<tr>
-										<td colSpan='5' style={{ textAlign: "center" }}>
+										<td colSpan='6' style={{ textAlign: "center" }}>
 											No hay registros detallados.
 										</td>
 									</tr>
@@ -319,11 +322,23 @@ export default function StatsTable() {
 												{formatearFecha(row.fecha)}
 											</td>
 											<td>
-												<strong>{row.email}</strong>
+												<strong>
+													{row.usuario_nombre || (
+														<span
+															style={{
+																color: "var(--muted-foreground)",
+																fontWeight: "normal",
+															}}
+														>
+															Sin Nombre
+														</span>
+													)}
+												</strong>
+											</td>
+											<td style={{ color: "var(--muted-foreground)" }}>
+												{row.email}
 											</td>
 											<td>{row.campana}</td>
-
-											{/* CELDA AÑADIDA */}
 											<td>
 												<span
 													style={{ fontWeight: 600, color: "var(--primary)" }}
@@ -331,7 +346,6 @@ export default function StatsTable() {
 													{row.nombre_enlace || "-"}
 												</span>
 											</td>
-
 											<td>
 												<a
 													href={row.original_url}
