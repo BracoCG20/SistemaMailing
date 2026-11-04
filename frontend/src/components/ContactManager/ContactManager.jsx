@@ -212,7 +212,7 @@ export default function ContactManager({
 				<div className={styles.toolbarRight}>
 					{/* Contador Total */}
 					<span className={styles.totalBadge}>
-						<Users size={14} /> {contactos.length} Totales
+						<Users size={14} /> {contactos.length} Usuarios
 					</span>
 					<div className={styles.searchBox}>
 						<Search size={14} />
