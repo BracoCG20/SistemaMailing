@@ -7,6 +7,8 @@ import {
 	BarChart3,
 	LayoutDashboard,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
 import CampaignForm from "./components/CampaignForm/CampaignForm";
 import ContactManager from "./components/ContactManager/ContactManager";
 import StatsTable from "./components/StatsTable/StatsTable";
@@ -17,6 +19,42 @@ function App() {
 
 	// Estado global para conectar la lista con el formulario
 	const [selectedContacts, setSelectedContacts] = useState([]);
+
+	// Función para descargar el CSV como un Excel nativo formateado
+	const descargarReporteExcel = async () => {
+		try {
+			toast.info("Generando reporte Excel...");
+			const res = await fetch("/api/reporte-envios");
+			const csvText = await res.text();
+
+			// Parsear el CSV recibido del backend
+			const rows = csvText.split("\n").map((row) => {
+				// Expresión regular para separar por comas ignorando comas dentro de comillas
+				const valores = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+				return valores.map((v) => v.replace(/^"|"$/g, "").trim());
+			});
+
+			// Crear libro de trabajo
+			const wb = XLSX.utils.book_new();
+			const ws = XLSX.utils.aoa_to_sheet(rows);
+
+			// Ajustar ancho de columnas para que se vea profesional
+			ws["!cols"] = [
+				{ wch: 22 }, // Fecha
+				{ wch: 25 }, // Campaña
+				{ wch: 20 }, // Nombre
+				{ wch: 30 }, // Email
+				{ wch: 15 }, // Estado
+				{ wch: 40 }, // Detalle
+			];
+
+			XLSX.utils.book_append_sheet(wb, ws, "Reporte Envios");
+			XLSX.writeFile(wb, "Reporte_Envios_Profesional.xlsx");
+			toast.success("Excel descargado correctamente.");
+		} catch {
+			toast.error("Error al generar el archivo Excel.");
+		}
+	};
 
 	// Estilo dinámico para los botones del menú lateral
 	const navButtonStyle = (isActive) => ({
@@ -171,20 +209,21 @@ function App() {
 									>
 										<Users size={20} /> 2. Destinatarios
 									</span>
-									<a
-										href='/api/reporte-envios'
+									<button
+										onClick={descargarReporteExcel}
 										className='btn'
 										style={{
 											background: "#107c41",
 											color: "white",
-											textDecoration: "none",
-											padding: "0.25rem 0.75rem",
+											border: "none",
+											cursor: "pointer",
+											padding: "0.4rem 0.75rem",
 											fontSize: "0.75rem",
 										}}
 									>
 										<FileDown size={14} style={{ marginRight: "0.25rem" }} />{" "}
-										Reporte Excel
-									</a>
+										Descargar Excel (.xlsx)
+									</button>
 								</h2>
 								<ContactManager
 									selectedContacts={selectedContacts}
