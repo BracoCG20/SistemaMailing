@@ -6,46 +6,42 @@ import {
 	FileDown,
 	BarChart3,
 	LayoutDashboard,
+	Menu,
+	X,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import CampaignForm from "./components/CampaignForm/CampaignForm";
 import ContactManager from "./components/ContactManager/ContactManager";
 import StatsTable from "./components/StatsTable/StatsTable";
+import styles from "./App.module.scss"; // <-- Importamos los estilos responsive
 
 function App() {
-	// Estado para la navegación del Dashboard ('campana' o 'estadisticas')
 	const [activeView, setActiveView] = useState("campana");
-
-	// Estado global para conectar la lista con el formulario
 	const [selectedContacts, setSelectedContacts] = useState([]);
+	const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Estado para el menú móvil
 
-	// Función para descargar el CSV como un Excel nativo formateado
 	const descargarReporteExcel = async () => {
 		try {
 			toast.info("Generando reporte Excel...");
 			const res = await fetch("/api/reporte-envios");
 			const csvText = await res.text();
 
-			// Parsear el CSV recibido del backend
 			const rows = csvText.split("\n").map((row) => {
-				// Expresión regular para separar por comas ignorando comas dentro de comillas
 				const valores = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 				return valores.map((v) => v.replace(/^"|"$/g, "").trim());
 			});
 
-			// Crear libro de trabajo
 			const wb = XLSX.utils.book_new();
 			const ws = XLSX.utils.aoa_to_sheet(rows);
 
-			// Ajustar ancho de columnas para que se vea profesional
 			ws["!cols"] = [
-				{ wch: 22 }, // Fecha
-				{ wch: 25 }, // Campaña
-				{ wch: 20 }, // Nombre
-				{ wch: 30 }, // Email
-				{ wch: 15 }, // Estado
-				{ wch: 40 }, // Detalle
+				{ wch: 22 },
+				{ wch: 25 },
+				{ wch: 20 },
+				{ wch: 30 },
+				{ wch: 15 },
+				{ wch: 40 },
 			];
 
 			XLSX.utils.book_append_sheet(wb, ws, "Reporte Envios");
@@ -56,7 +52,11 @@ function App() {
 		}
 	};
 
-	// Estilo dinámico para los botones del menú lateral
+	const handleNavClick = (view) => {
+		setActiveView(view);
+		setIsSidebarOpen(false); // Cierra el menú en móvil al hacer clic
+	};
+
 	const navButtonStyle = (isActive) => ({
 		display: "flex",
 		alignItems: "center",
@@ -75,37 +75,53 @@ function App() {
 	});
 
 	return (
-		<div
-			style={{
-				display: "flex",
-				minHeight: "100vh",
-				backgroundColor: "var(--background)",
-			}}
-		>
-			{/* SIDEBAR (MENÚ LATERAL) */}
+		<div className={styles.layout}>
+			{/* Fondo oscuro para móvil cuando el menú está abierto */}
+			{isSidebarOpen && (
+				<div
+					className={styles.overlay}
+					onClick={() => setIsSidebarOpen(false)}
+				></div>
+			)}
+
+			{/* SIDEBAR */}
 			<aside
-				style={{
-					width: "260px",
-					backgroundColor: "var(--card)",
-					borderRight: "1px solid var(--border)",
-					padding: "1.5rem",
-					display: "flex",
-					flexDirection: "column",
-				}}
+				className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ""}`}
 			>
 				<div
 					style={{
 						display: "flex",
+						justifyContent: "space-between",
 						alignItems: "center",
-						gap: "0.5rem",
-						fontSize: "1.25rem",
-						fontWeight: "bold",
 						marginBottom: "2.5rem",
-						color: "var(--foreground)",
 					}}
 				>
-					<LayoutDashboard size={24} color='var(--primary)' />
-					Mailing
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "0.5rem",
+							fontSize: "1.25rem",
+							fontWeight: "bold",
+							color: "var(--foreground)",
+						}}
+					>
+						<LayoutDashboard size={24} color='var(--primary)' />
+						MailingPro
+					</div>
+					{/* Botón cerrar solo visible en móvil (manejado por css o render condicional) */}
+					<button
+						className='btn btn-outline'
+						style={{ padding: "0.25rem" }}
+						onClick={() => setIsSidebarOpen(false)}
+						aria-label='Cerrar menú'
+					>
+						<X
+							size={20}
+							className='md-hidden'
+							style={{ display: window.innerWidth > 768 ? "none" : "block" }}
+						/>
+					</button>
 				</div>
 
 				<nav
@@ -113,14 +129,13 @@ function App() {
 				>
 					<button
 						style={navButtonStyle(activeView === "campana")}
-						onClick={() => setActiveView("campana")}
+						onClick={() => handleNavClick("campana")}
 					>
 						<Mail size={18} /> Nueva Campaña
 					</button>
-
 					<button
 						style={navButtonStyle(activeView === "estadisticas")}
-						onClick={() => setActiveView("estadisticas")}
+						onClick={() => handleNavClick("estadisticas")}
 					>
 						<BarChart3 size={18} /> Estadísticas y Clics
 					</button>
@@ -128,14 +143,21 @@ function App() {
 			</aside>
 
 			{/* CONTENIDO PRINCIPAL */}
-			<main
-				style={{
-					flex: 1,
-					padding: "2rem 3rem",
-					overflowY: "auto",
-					height: "100vh",
-				}}
-			>
+			<main className={styles.mainContent}>
+				{/* Header Móvil (Hamburguesa) */}
+				<div className={styles.mobileHeader}>
+					<button
+						className='btn btn-outline'
+						style={{ padding: "0.5rem" }}
+						onClick={() => setIsSidebarOpen(true)}
+					>
+						<Menu size={20} />
+					</button>
+					<span style={{ fontWeight: "bold", fontSize: "1.125rem" }}>
+						MailingPro
+					</span>
+				</div>
+
 				{/* VISTA 1: NUEVA CAMPAÑA */}
 				{activeView === "campana" && (
 					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
@@ -155,19 +177,11 @@ function App() {
 									fontSize: "0.875rem",
 								}}
 							>
-								Configura tu correo y selecciona los destinatarios para el envío
-								por lotes.
+								Configura tu correo y selecciona destinatarios.
 							</p>
 						</header>
 
-						<div
-							style={{
-								display: "grid",
-								gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
-								gap: "2rem",
-							}}
-						>
-							{/* COLUMNA IZQUIERDA */}
+						<div className={styles.gridContainer}>
 							<section className='card'>
 								<h2
 									style={{
@@ -186,7 +200,6 @@ function App() {
 								/>
 							</section>
 
-							{/* COLUMNA DERECHA */}
 							<section className='card'>
 								<h2
 									style={{
@@ -198,6 +211,8 @@ function App() {
 										display: "flex",
 										justifyContent: "space-between",
 										alignItems: "center",
+										flexWrap: "wrap",
+										gap: "1rem",
 									}}
 								>
 									<span
@@ -222,7 +237,7 @@ function App() {
 										}}
 									>
 										<FileDown size={14} style={{ marginRight: "0.25rem" }} />{" "}
-										Descargar Excel (.xlsx)
+										Descargar Excel
 									</button>
 								</h2>
 								<ContactManager
@@ -253,8 +268,7 @@ function App() {
 									fontSize: "0.875rem",
 								}}
 							>
-								Revisa el rendimiento de tus enlaces y descubre quién interactúa
-								con tus correos.
+								Revisa el rendimiento de tus enlaces.
 							</p>
 						</header>
 
