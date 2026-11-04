@@ -1,25 +1,25 @@
-// frontend/src/App.jsx
 import { useState } from "react";
 import {
 	Mail,
-	Users,
 	FileDown,
-	BarChart3,
 	LayoutDashboard,
 	Menu,
 	X,
+	TableProperties,
+	PieChart,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import CampaignForm from "./components/CampaignForm/CampaignForm";
 import ContactManager from "./components/ContactManager/ContactManager";
 import StatsTable from "./components/StatsTable/StatsTable";
-import styles from "./App.module.scss"; // <-- Importamos los estilos responsive
+import Dashboard from "./components/Dashboard/Dashboard"; // <-- NUEVO COMPONENTE
+import styles from "./App.module.scss";
 
 function App() {
-	const [activeView, setActiveView] = useState("campana");
+	const [activeView, setActiveView] = useState("dashboard"); // <-- Inicia en el dashboard
 	const [selectedContacts, setSelectedContacts] = useState([]);
-	const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Estado para el menú móvil
+	const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
 	const descargarReporteExcel = async () => {
 		try {
@@ -54,7 +54,7 @@ function App() {
 
 	const handleNavClick = (view) => {
 		setActiveView(view);
-		setIsSidebarOpen(false); // Cierra el menú en móvil al hacer clic
+		setIsSidebarOpen(false);
 	};
 
 	const navButtonStyle = (isActive) => ({
@@ -76,7 +76,6 @@ function App() {
 
 	return (
 		<div className={styles.layout}>
-			{/* Fondo oscuro para móvil cuando el menú está abierto */}
 			{isSidebarOpen && (
 				<div
 					className={styles.overlay}
@@ -107,9 +106,8 @@ function App() {
 						}}
 					>
 						<LayoutDashboard size={24} color='var(--primary)' />
-						Mailing
+						MailingPro
 					</div>
-					{/* Botón cerrar solo visible en móvil (manejado por css o render condicional) */}
 					<button
 						className='btn btn-outline'
 						style={{ padding: "0.25rem" }}
@@ -118,7 +116,6 @@ function App() {
 					>
 						<X
 							size={20}
-							className='md-hidden'
 							style={{ display: window.innerWidth > 768 ? "none" : "block" }}
 						/>
 					</button>
@@ -127,6 +124,12 @@ function App() {
 				<nav
 					style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
 				>
+					<button
+						style={navButtonStyle(activeView === "dashboard")}
+						onClick={() => handleNavClick("dashboard")}
+					>
+						<PieChart size={18} /> Dashboard Visual
+					</button>
 					<button
 						style={navButtonStyle(activeView === "campana")}
 						onClick={() => handleNavClick("campana")}
@@ -137,14 +140,13 @@ function App() {
 						style={navButtonStyle(activeView === "estadisticas")}
 						onClick={() => handleNavClick("estadisticas")}
 					>
-						<BarChart3 size={18} /> Estadísticas y Clics
+						<TableProperties size={18} /> Tablas de Datos
 					</button>
 				</nav>
 			</aside>
 
 			{/* CONTENIDO PRINCIPAL */}
 			<main className={styles.mainContent}>
-				{/* Header Móvil (Hamburguesa) */}
 				<div className={styles.mobileHeader}>
 					<button
 						className='btn btn-outline'
@@ -157,6 +159,32 @@ function App() {
 						MailingPro
 					</span>
 				</div>
+
+				{/* VISTA 0: DASHBOARD VISUAL */}
+				{activeView === "dashboard" && (
+					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+						<header style={{ marginBottom: "2rem" }}>
+							<h1
+								style={{
+									fontSize: "1.5rem",
+									fontWeight: "bold",
+									marginBottom: "0.25rem",
+								}}
+							>
+								Dashboard General
+							</h1>
+							<p
+								style={{
+									color: "var(--muted-foreground)",
+									fontSize: "0.875rem",
+								}}
+							>
+								Visión general del rendimiento de tus campañas.
+							</p>
+						</header>
+						<Dashboard />
+					</div>
+				)}
 
 				{/* VISTA 1: NUEVA CAMPAÑA */}
 				{activeView === "campana" && (
@@ -215,15 +243,7 @@ function App() {
 										gap: "1rem",
 									}}
 								>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "0.5rem",
-										}}
-									>
-										<Users size={20} /> 2. Destinatarios
-									</span>
+									<span>2. Destinatarios</span>
 									<button
 										onClick={descargarReporteExcel}
 										className='btn'
@@ -237,7 +257,7 @@ function App() {
 										}}
 									>
 										<FileDown size={14} style={{ marginRight: "0.25rem" }} />{" "}
-										Descargar Excel
+										Exportar Registros
 									</button>
 								</h2>
 								<ContactManager
@@ -249,7 +269,7 @@ function App() {
 					</div>
 				)}
 
-				{/* VISTA 2: ESTADÍSTICAS */}
+				{/* VISTA 2: TABLAS DE DATOS */}
 				{activeView === "estadisticas" && (
 					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
 						<header style={{ marginBottom: "2rem" }}>
@@ -260,7 +280,7 @@ function App() {
 									marginBottom: "0.25rem",
 								}}
 							>
-								Análisis de Interacción
+								Tablas de Datos
 							</h1>
 							<p
 								style={{
@@ -268,10 +288,9 @@ function App() {
 									fontSize: "0.875rem",
 								}}
 							>
-								Revisa el rendimiento de tus enlaces.
+								Explora los clics detallados y descarga informes.
 							</p>
 						</header>
-
 						<section className='card'>
 							<StatsTable />
 						</section>
