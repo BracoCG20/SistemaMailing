@@ -1,14 +1,17 @@
+/* frontend/src/components/StatsTable/StatsTable.module.scss */
 .header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 1rem;
+	flex-wrap: wrap;
+	gap: 1rem;
 }
 .tabs {
 	display: flex;
 	gap: 1rem;
 	border-bottom: 1px solid var(--border);
-	margin-bottom: 1rem;
+	flex: 1;
 }
 .tab {
 	background: none;
@@ -25,8 +28,15 @@
 		border-bottom: 2px solid var(--primary);
 	}
 }
+.actions {
+	display: flex;
+	gap: 0.5rem;
+}
 .tableWrapper {
 	overflow-x: auto;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--card);
 }
 .table {
 	width: 100%;
@@ -45,10 +55,50 @@
 		color: var(--muted-foreground);
 	}
 }
+.mainRow {
+	cursor: pointer;
+	transition: background-color 0.2s;
+	&:hover {
+		background-color: var(--muted);
+	}
+}
+.expandedContent {
+	background-color: #fafafa;
+	padding: 1rem 2rem;
+	border-bottom: 1px solid var(--border);
+}
+.subTable {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.8125rem;
+	td {
+		padding: 0.5rem;
+		border-bottom: 1px dashed var(--border);
+		&:last-child {
+			border-bottom: none;
+		}
+	}
+}
 .badge {
 	background: #e6f4ea;
 	color: #137333;
 	padding: 0.25rem 0.5rem;
 	border-radius: 4px;
 	font-weight: bold;
+	display: inline-block;
+}
+.pagination {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 1rem;
+	background-color: var(--card);
+	border-top: 1px solid var(--border);
+	font-size: 0.875rem;
+	color: var(--muted-foreground);
+}
+.pageControls {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
 }
