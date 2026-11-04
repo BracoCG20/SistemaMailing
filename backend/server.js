@@ -18,7 +18,6 @@ app.use(express.static(path.join(__dirname, "../frontend/dist")));
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// NUEVO: Agregado "cancelado: false"
 let estadoEnvio = {
 	activo: false,
 	cancelado: false,
@@ -134,7 +133,7 @@ app.post("/api/send-background", async (req, res) => {
 
 	estadoEnvio = {
 		activo: true,
-		cancelado: false, // NUEVO: resetear al iniciar
+		cancelado: false,
 		total: recipients.length,
 		enviados: 0,
 		errores: 0,
@@ -156,14 +155,13 @@ app.post("/api/send-background", async (req, res) => {
 		const ESPERA_CORREO = 1000;
 
 		for (let i = 0; i < recipients.length; i++) {
-			// NUEVO: COMPROBACIÓN DE CANCELACIÓN
 			if (estadoEnvio.cancelado) {
 				estadoEnvio.log.push({
 					email: "SISTEMA",
 					status: "error",
 					detalle: "🛑 Envío cancelado manualmente.",
 				});
-				break; // Romper bucle si el usuario canceló
+				break;
 			}
 
 			const { email, nombre = "" } = recipients[i];
@@ -233,6 +231,18 @@ app.post("/api/send-background", async (req, res) => {
 					status: "error",
 					detalle: error.message,
 				});
+
+				// NUEVO: AUTO-PAUSA DE EMERGENCIA
+				if (estadoEnvio.errores >= 3) {
+					estadoEnvio.cancelado = true;
+					estadoEnvio.log.push({
+						email: "SISTEMA",
+						status: "error",
+						detalle:
+							"🛑 DETENIDO AUTOMÁTICAMENTE: Servidor rechazando correos (Posible límite excedido).",
+					});
+					break;
+				}
 			}
 
 			if ((i + 1) % LOTE === 0 && i + 1 !== recipients.length) {
@@ -252,7 +262,6 @@ app.post("/api/send-background", async (req, res) => {
 
 app.get("/api/status-envio", (req, res) => res.json(estadoEnvio));
 
-// NUEVO: ENDPOINT PARA CANCELAR ENVÍOS EN CURSO
 app.post("/api/cancelar-envio", (req, res) => {
 	if (estadoEnvio.activo) {
 		estadoEnvio.cancelado = true;
@@ -334,25 +343,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 		);
 	} catch (err) {
 		res.status(500).json({ error: "Error" });
-	}
-});
-
-app.get("/api/limpiar-bd", async (req, res) => {
-	try {
-		await pool.query(
-			"TRUNCATE TABLE clicks, historial_envios RESTART IDENTITY;",
-		);
-		res.send(`
-            <h1 style="color: green; font-family: sans-serif; text-align: center; margin-top: 50px;">
-                ✅ Datos de prueba eliminados con éxito.
-            </h1>
-            <p style="text-align: center; font-family: sans-serif;">
-                Todo el historial y clics están en cero. <br>
-                <b>¡IMPORTANTE: Por seguridad, borra este endpoint de tu server.js ahora mismo y vuelve a subir el archivo!</b>
-            </p>
-        `);
-	} catch (err) {
-		res.status(500).send("Error limpiando la BD: " + err.message);
 	}
 });
 
