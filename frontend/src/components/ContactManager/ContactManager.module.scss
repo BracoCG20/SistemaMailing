@@ -100,7 +100,8 @@
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
 	height: 350px;
-	overflow-y: hidden;
+	overflow-y: auto;
+	overflow-x: hidden;
 	padding: 0;
 	background: var(--card);
 	margin-top: 1rem;
