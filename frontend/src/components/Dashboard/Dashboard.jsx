@@ -14,6 +14,28 @@ import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./Dashboard.module.scss";
 
+// MAPA DE ARTISTAS BASADO EN SUS URLS ÚNICAS
+const MAPA_ARTISTAS = {
+	maxou: "Santi Chávez",
+	Fd0k_franco: "Franco Finocchiaro",
+	GtQV_Fertil_Florian: "Florian Florian",
+	"0ncP_Alvaro_luque": "Álvaro Luque",
+	qfg6u: "Julián Fernández",
+	qu4L_Guido_Barbosch: "Guido Barbosh",
+};
+
+const obtenerNombreReal = (url, nombreOriginal) => {
+	// Si la URL es de Simian, buscamos su código en el mapa
+	if (url && url.includes("simian.me/")) {
+		const urlId = url.split("simian.me/")[1]?.split("?")[0];
+		if (urlId && MAPA_ARTISTAS[urlId]) {
+			return MAPA_ARTISTAS[urlId];
+		}
+	}
+	// Si no está en el mapa, devolvemos el original
+	return nombreOriginal;
+};
+
 export default function Dashboard() {
 	const [statsCampana, setStatsCampana] = useState([]);
 	const [statsArtista, setStatsArtista] = useState([]);
@@ -47,11 +69,22 @@ export default function Dashboard() {
 					agrupadoCampana[item.campana] =
 						(agrupadoCampana[item.campana] || 0) + 1;
 
-					const artista =
-						item.nombre_enlace && item.nombre_enlace !== "-"
-							? item.nombre_enlace
-							: "Otros Enlaces";
-					agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
+					// REGLAS DE FILTRADO Y MAPEO
+					let artista = obtenerNombreReal(
+						item.original_url,
+						item.nombre_enlace,
+					);
+
+					// Omitimos clics a la web principal o redes sociales en el ranking de directores
+					if (
+						artista &&
+						artista !== "-" &&
+						!artista.includes("www.fertil.tv") &&
+						!artista.toLowerCase().includes("instagram") &&
+						!artista.toLowerCase().includes("linkedin")
+					) {
+						agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
+					}
 				});
 
 				const dataCampana = Object.keys(agrupadoCampana)
@@ -62,7 +95,6 @@ export default function Dashboard() {
 					.sort((a, b) => b.clics - a.clics);
 
 				const dataArtista = Object.keys(agrupadoArtista)
-					.filter((key) => key !== "Otros Enlaces")
 					.map((key) => ({
 						name: key,
 						clics: agrupadoArtista[key],
@@ -114,7 +146,7 @@ export default function Dashboard() {
 
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
-						<span>Artista con más clics</span>
+						<span>Director más visto</span>
 						<Trophy size={18} color='#eab308' />
 					</div>
 					<span
@@ -128,7 +160,7 @@ export default function Dashboard() {
 
 			<div className={styles.chartsGrid}>
 				<div className={styles.chartContainer}>
-					<h3>Top Artistas / Directores Más Clickeados</h3>
+					<h3>Ranking de Directores por Clics</h3>
 					<div style={{ flex: 1, width: "100%", height: "100%" }}>
 						<ResponsiveContainer width='100%' height='100%'>
 							<BarChart
@@ -143,7 +175,7 @@ export default function Dashboard() {
 									axisLine={false}
 									tickLine={false}
 									tick={{ fill: "var(--foreground)", fontSize: 12 }}
-									width={120}
+									width={140}
 								/>
 								<Tooltip
 									cursor={{ fill: "var(--muted)" }}

@@ -10,6 +10,26 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import styles from "./StatsTable.module.scss";
 
+// EL MISMO MAPA DE CORRECCIÓN
+const MAPA_ARTISTAS = {
+	maxou: "Santi Chávez",
+	Fd0k_franco: "Franco Finocchiaro",
+	GtQV_Fertil_Florian: "Florian Florian",
+	"0ncP_Alvaro_luque": "Álvaro Luque",
+	qfg6u: "Julián Fernández",
+	qu4L_Guido_Barbosch: "Guido Barbosh",
+};
+
+const obtenerNombreReal = (url, nombreOriginal) => {
+	if (url && url.includes("simian.me/")) {
+		const urlId = url.split("simian.me/")[1]?.split("?")[0];
+		if (urlId && MAPA_ARTISTAS[urlId]) {
+			return MAPA_ARTISTAS[urlId];
+		}
+	}
+	return nombreOriginal;
+};
+
 export default function StatsTable() {
 	const [activeTab, setActiveTab] = useState("resumen");
 	const [stats, setStats] = useState([]);
@@ -30,7 +50,15 @@ export default function StatsTable() {
 				fetch("/api/clicks-detail"),
 			]);
 			setStats(await resStats.json());
-			setDetalles(await resDetail.json());
+
+			// CORREGIMOS LOS DETALLES AL CARGARLOS
+			const datosBrutos = await resDetail.json();
+			const datosCorregidos = datosBrutos.map((item) => ({
+				...item,
+				nombre_enlace: obtenerNombreReal(item.original_url, item.nombre_enlace),
+			}));
+
+			setDetalles(datosCorregidos);
 		} catch {
 			toast.error("Error cargando estadísticas");
 		} finally {
@@ -69,21 +97,15 @@ export default function StatsTable() {
 	};
 
 	const statsAgrupados = stats.reduce((acc, curr) => {
-		if (!acc[curr.campana]) {
-			acc[curr.campana] = { totalClicks: 0, enlaces: [] };
-		}
+		if (!acc[curr.campana]) acc[curr.campana] = { totalClicks: 0, enlaces: [] };
 		acc[curr.campana].totalClicks += parseInt(curr.click_count, 10);
 		acc[curr.campana].enlaces.push(curr);
 		return acc;
 	}, {});
 
 	const arrayResumen = Object.entries(statsAgrupados).map(
-		([campana, data]) => ({
-			campana,
-			...data,
-		}),
+		([campana, data]) => ({ campana, ...data }),
 	);
-
 	const totalPagesResumen = Math.ceil(arrayResumen.length / itemsPerPage) || 1;
 	const paginatedResumen = arrayResumen.slice(
 		(pageResumen - 1) * itemsPerPage,
@@ -114,7 +136,7 @@ export default function StatsTable() {
 				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
 				ws["!cols"] = [{ wch: 25 }, { wch: 50 }, { wch: 15 }];
 				XLSX.utils.book_append_sheet(wb, ws, "Resumen Clics");
-				XLSX.writeFile(wb, "Resumen_Clics_Mailing.xlsx");
+				XLSX.writeFile(wb, "Resumen_Clics.xlsx");
 			} else {
 				const dataPlana = detalles.map((d) => [
 					formatearFecha(d.fecha),
@@ -129,8 +151,8 @@ export default function StatsTable() {
 					"Usuario",
 					"Correo",
 					"Campaña",
-					"Artista / Nombre",
-					"Enlace Visitado",
+					"Director / Enlace",
+					"URL Visitada",
 				]);
 				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
 				ws["!cols"] = [
@@ -142,7 +164,7 @@ export default function StatsTable() {
 					{ wch: 50 },
 				];
 				XLSX.utils.book_append_sheet(wb, ws, "Detalle Usuarios");
-				XLSX.writeFile(wb, "Detalle_Usuarios_Clics.xlsx");
+				XLSX.writeFile(wb, "Detalle_Clics_Usuarios.xlsx");
 			}
 			toast.success("Excel descargado correctamente");
 		} catch {
@@ -173,15 +195,15 @@ export default function StatsTable() {
 						onClick={exportarExcel}
 						style={{ color: "#107c41", borderColor: "#107c41" }}
 					>
-						<FileDown size={16} style={{ marginRight: "0.5rem" }} />
-						Exportar Vista
+						<FileDown size={16} style={{ marginRight: "0.5rem" }} /> Exportar
+						Vista
 					</button>
 					<button
 						className='btn btn-outline'
 						onClick={cargarDatos}
 						disabled={loading}
 					>
-						<RefreshCcw size={16} style={{ marginRight: "0.5rem" }} />
+						<RefreshCcw size={16} style={{ marginRight: "0.5rem" }} />{" "}
 						Actualizar
 					</button>
 				</div>
@@ -272,13 +294,11 @@ export default function StatsTable() {
 						</table>
 						<div className={styles.pagination}>
 							<span>
-								Página {pageResumen} de {totalPagesResumen} (Total:{" "}
-								{arrayResumen.length} Campañas)
+								Página {pageResumen} de {totalPagesResumen}
 							</span>
 							<div className={styles.pageControls}>
 								<button
 									className='btn btn-outline'
-									style={{ padding: "0.25rem 0.5rem" }}
 									disabled={pageResumen === 1}
 									onClick={() => setPageResumen((p) => p - 1)}
 								>
@@ -286,7 +306,6 @@ export default function StatsTable() {
 								</button>
 								<button
 									className='btn btn-outline'
-									style={{ padding: "0.25rem 0.5rem" }}
 									disabled={pageResumen === totalPagesResumen}
 									onClick={() => setPageResumen((p) => p + 1)}
 								>
@@ -304,7 +323,7 @@ export default function StatsTable() {
 									<th>Usuario</th>
 									<th>Correo</th>
 									<th>Campaña</th>
-									<th>Artista / Nombre</th>
+									<th>Director / Enlace</th>
 									<th>Enlace Visitado</th>
 								</tr>
 							</thead>
@@ -367,13 +386,11 @@ export default function StatsTable() {
 						</table>
 						<div className={styles.pagination}>
 							<span>
-								Página {pageDetalle} de {totalPagesDetalle} (Total:{" "}
-								{detalles.length} Registros)
+								Página {pageDetalle} de {totalPagesDetalle}
 							</span>
 							<div className={styles.pageControls}>
 								<button
 									className='btn btn-outline'
-									style={{ padding: "0.25rem 0.5rem" }}
 									disabled={pageDetalle === 1}
 									onClick={() => setPageDetalle((p) => p - 1)}
 								>
@@ -381,7 +398,6 @@ export default function StatsTable() {
 								</button>
 								<button
 									className='btn btn-outline'
-									style={{ padding: "0.25rem 0.5rem" }}
 									disabled={pageDetalle === totalPagesDetalle}
 									onClick={() => setPageDetalle((p) => p + 1)}
 								>
