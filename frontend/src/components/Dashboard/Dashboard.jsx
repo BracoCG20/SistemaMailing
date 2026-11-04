@@ -1,304 +1,200 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-	Mail,
-	FileDown,
-	LayoutDashboard,
-	Menu,
-	X,
-	TableProperties,
+	BarChart,
+	Bar,
+	XAxis,
+	YAxis,
+	Tooltip,
+	ResponsiveContainer,
 	PieChart,
-} from "lucide-react";
-import * as XLSX from "xlsx";
+	Pie,
+	Cell,
+} from "recharts";
+import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
-import CampaignForm from "./components/CampaignForm/CampaignForm";
-import ContactManager from "./components/ContactManager/ContactManager";
-import StatsTable from "./components/StatsTable/StatsTable";
-import Dashboard from "./components/Dashboard/Dashboard"; // <-- NUEVO COMPONENTE
-import styles from "./App.module.scss";
+import styles from "./Dashboard.module.scss";
 
-function App() {
-	const [activeView, setActiveView] = useState("dashboard"); // <-- Inicia en el dashboard
-	const [selectedContacts, setSelectedContacts] = useState([]);
-	const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-	const descargarReporteExcel = async () => {
-		try {
-			toast.info("Generando reporte Excel...");
-			const res = await fetch("/api/reporte-envios");
-			const csvText = await res.text();
-
-			const rows = csvText.split("\n").map((row) => {
-				const valores = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-				return valores.map((v) => v.replace(/^"|"$/g, "").trim());
-			});
-
-			const wb = XLSX.utils.book_new();
-			const ws = XLSX.utils.aoa_to_sheet(rows);
-
-			ws["!cols"] = [
-				{ wch: 22 },
-				{ wch: 25 },
-				{ wch: 20 },
-				{ wch: 30 },
-				{ wch: 15 },
-				{ wch: 40 },
-			];
-
-			XLSX.utils.book_append_sheet(wb, ws, "Reporte Envios");
-			XLSX.writeFile(wb, "Reporte_Envios_Profesional.xlsx");
-			toast.success("Excel descargado correctamente.");
-		} catch {
-			toast.error("Error al generar el archivo Excel.");
-		}
-	};
-
-	const handleNavClick = (view) => {
-		setActiveView(view);
-		setIsSidebarOpen(false);
-	};
-
-	const navButtonStyle = (isActive) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: "0.75rem",
-		padding: "0.75rem 1rem",
-		borderRadius: "var(--radius)",
-		border: "none",
-		cursor: "pointer",
-		fontSize: "0.875rem",
-		fontWeight: "500",
-		width: "100%",
-		textAlign: "left",
-		backgroundColor: isActive ? "var(--primary)" : "transparent",
-		color: isActive ? "var(--primary-foreground)" : "var(--muted-foreground)",
-		transition: "all 0.2s",
+export default function Dashboard() {
+	const [statsCampana, setStatsCampana] = useState([]);
+	const [statsArtista, setStatsArtista] = useState([]);
+	const [totales, setTotales] = useState({
+		clics: 0,
+		campanas: 0,
+		mejorArtista: "-",
 	});
+	const [loading, setLoading] = useState(true);
+
+	const COLORES = [
+		"#18181b",
+		"#107c41",
+		"#3f3f46",
+		"#71717a",
+		"#a1a1aa",
+		"#d4d4d8",
+	];
+
+	useEffect(() => {
+		const cargarMetricas = async () => {
+			try {
+				const res = await fetch("/api/clicks-detail");
+				const data = await res.json();
+
+				const agrupadoCampana = {};
+				const agrupadoArtista = {};
+				let totalClics = data.length;
+
+				data.forEach((item) => {
+					agrupadoCampana[item.campana] =
+						(agrupadoCampana[item.campana] || 0) + 1;
+
+					const artista =
+						item.nombre_enlace && item.nombre_enlace !== "-"
+							? item.nombre_enlace
+							: "Otros Enlaces";
+					agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
+				});
+
+				const dataCampana = Object.keys(agrupadoCampana)
+					.map((key) => ({
+						name: key,
+						clics: agrupadoCampana[key],
+					}))
+					.sort((a, b) => b.clics - a.clics);
+
+				const dataArtista = Object.keys(agrupadoArtista)
+					.filter((key) => key !== "Otros Enlaces")
+					.map((key) => ({
+						name: key,
+						clics: agrupadoArtista[key],
+					}))
+					.sort((a, b) => b.clics - a.clics)
+					.slice(0, 7);
+
+				setStatsCampana(dataCampana);
+				setStatsArtista(dataArtista);
+				setTotales({
+					clics: totalClics,
+					campanas: dataCampana.length,
+					mejorArtista:
+						dataArtista.length > 0 ? dataArtista[0].name : "Ninguno",
+				});
+			} catch {
+				toast.error("Error cargando el dashboard");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		cargarMetricas();
+	}, []);
+
+	if (loading)
+		return (
+			<p style={{ color: "var(--muted-foreground)" }}>Cargando métricas...</p>
+		);
 
 	return (
-		<div className={styles.layout}>
-			{isSidebarOpen && (
-				<div
-					className={styles.overlay}
-					onClick={() => setIsSidebarOpen(false)}
-				></div>
-			)}
-
-			{/* SIDEBAR */}
-			<aside
-				className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ""}`}
-			>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						marginBottom: "2.5rem",
-					}}
-				>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "0.5rem",
-							fontSize: "1.25rem",
-							fontWeight: "bold",
-							color: "var(--foreground)",
-						}}
-					>
-						<LayoutDashboard size={24} color='var(--primary)' />
-						MailingPro
+		<div>
+			<div className={styles.dashboardGrid}>
+				<div className={styles.summaryCard}>
+					<div className={styles.cardHeader}>
+						<span>Clics Totales Históricos</span>
+						<MousePointerClick size={18} color='var(--primary)' />
 					</div>
-					<button
-						className='btn btn-outline'
-						style={{ padding: "0.25rem" }}
-						onClick={() => setIsSidebarOpen(false)}
-						aria-label='Cerrar menú'
-					>
-						<X
-							size={20}
-							style={{ display: window.innerWidth > 768 ? "none" : "block" }}
-						/>
-					</button>
+					<span className={styles.cardValue}>{totales.clics}</span>
 				</div>
 
-				<nav
-					style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-				>
-					<button
-						style={navButtonStyle(activeView === "dashboard")}
-						onClick={() => handleNavClick("dashboard")}
-					>
-						<PieChart size={18} /> Dashboard Visual
-					</button>
-					<button
-						style={navButtonStyle(activeView === "campana")}
-						onClick={() => handleNavClick("campana")}
-					>
-						<Mail size={18} /> Nueva Campaña
-					</button>
-					<button
-						style={navButtonStyle(activeView === "estadisticas")}
-						onClick={() => handleNavClick("estadisticas")}
-					>
-						<TableProperties size={18} /> Tablas de Datos
-					</button>
-				</nav>
-			</aside>
+				<div className={styles.summaryCard}>
+					<div className={styles.cardHeader}>
+						<span>Campañas Enviadas</span>
+						<TrendingUp size={18} color='#107c41' />
+					</div>
+					<span className={styles.cardValue}>{totales.campanas}</span>
+				</div>
 
-			{/* CONTENIDO PRINCIPAL */}
-			<main className={styles.mainContent}>
-				<div className={styles.mobileHeader}>
-					<button
-						className='btn btn-outline'
-						style={{ padding: "0.5rem" }}
-						onClick={() => setIsSidebarOpen(true)}
+				<div className={styles.summaryCard}>
+					<div className={styles.cardHeader}>
+						<span>Artista con más clics</span>
+						<Trophy size={18} color='#eab308' />
+					</div>
+					<span
+						className={styles.cardValue}
+						style={{ fontSize: "1.25rem", marginTop: "0.25rem" }}
 					>
-						<Menu size={20} />
-					</button>
-					<span style={{ fontWeight: "bold", fontSize: "1.125rem" }}>
-						MailingPro
+						{totales.mejorArtista}
 					</span>
 				</div>
+			</div>
 
-				{/* VISTA 0: DASHBOARD VISUAL */}
-				{activeView === "dashboard" && (
-					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-						<header style={{ marginBottom: "2rem" }}>
-							<h1
-								style={{
-									fontSize: "1.5rem",
-									fontWeight: "bold",
-									marginBottom: "0.25rem",
-								}}
+			<div className={styles.chartsGrid}>
+				<div className={styles.chartContainer}>
+					<h3>Top Artistas / Directores Más Clickeados</h3>
+					<div style={{ flex: 1, width: "100%", height: "100%" }}>
+						<ResponsiveContainer width='100%' height='100%'>
+							<BarChart
+								data={statsArtista}
+								layout='vertical'
+								margin={{ top: 0, right: 30, left: 30, bottom: 0 }}
 							>
-								Dashboard General
-							</h1>
-							<p
-								style={{
-									color: "var(--muted-foreground)",
-									fontSize: "0.875rem",
-								}}
-							>
-								Visión general del rendimiento de tus campañas.
-							</p>
-						</header>
-						<Dashboard />
-					</div>
-				)}
-
-				{/* VISTA 1: NUEVA CAMPAÑA */}
-				{activeView === "campana" && (
-					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-						<header style={{ marginBottom: "2rem" }}>
-							<h1
-								style={{
-									fontSize: "1.5rem",
-									fontWeight: "bold",
-									marginBottom: "0.25rem",
-								}}
-							>
-								Lanzar Nueva Campaña
-							</h1>
-							<p
-								style={{
-									color: "var(--muted-foreground)",
-									fontSize: "0.875rem",
-								}}
-							>
-								Configura tu correo y selecciona destinatarios.
-							</p>
-						</header>
-
-						<div className={styles.gridContainer}>
-							<section className='card'>
-								<h2
-									style={{
-										fontSize: "1.125rem",
-										marginBottom: "1.5rem",
-										borderBottom: "1px solid var(--border)",
-										paddingBottom: "0.75rem",
-										fontWeight: "600",
-									}}
-								>
-									1. Configuración de Campaña
-								</h2>
-								<CampaignForm
-									selectedContacts={selectedContacts}
-									onClearSelection={() => setSelectedContacts([])}
+								<XAxis type='number' hide />
+								<YAxis
+									dataKey='name'
+									type='category'
+									axisLine={false}
+									tickLine={false}
+									tick={{ fill: "var(--foreground)", fontSize: 12 }}
+									width={120}
 								/>
-							</section>
-
-							<section className='card'>
-								<h2
-									style={{
-										fontSize: "1.125rem",
-										marginBottom: "1.5rem",
-										borderBottom: "1px solid var(--border)",
-										paddingBottom: "0.75rem",
-										fontWeight: "600",
-										display: "flex",
-										justifyContent: "space-between",
-										alignItems: "center",
-										flexWrap: "wrap",
-										gap: "1rem",
+								<Tooltip
+									cursor={{ fill: "var(--muted)" }}
+									contentStyle={{
+										borderRadius: "8px",
+										border: "1px solid var(--border)",
 									}}
-								>
-									<span>2. Destinatarios</span>
-									<button
-										onClick={descargarReporteExcel}
-										className='btn'
-										style={{
-											background: "#107c41",
-											color: "white",
-											border: "none",
-											cursor: "pointer",
-											padding: "0.4rem 0.75rem",
-											fontSize: "0.75rem",
-										}}
-									>
-										<FileDown size={14} style={{ marginRight: "0.25rem" }} />{" "}
-										Exportar Registros
-									</button>
-								</h2>
-								<ContactManager
-									selectedContacts={selectedContacts}
-									setSelectedContacts={setSelectedContacts}
 								/>
-							</section>
-						</div>
+								<Bar
+									dataKey='clics'
+									fill='var(--primary)'
+									radius={[0, 4, 4, 0]}
+									barSize={24}
+								/>
+							</BarChart>
+						</ResponsiveContainer>
 					</div>
-				)}
+				</div>
 
-				{/* VISTA 2: TABLAS DE DATOS */}
-				{activeView === "estadisticas" && (
-					<div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-						<header style={{ marginBottom: "2rem" }}>
-							<h1
-								style={{
-									fontSize: "1.5rem",
-									fontWeight: "bold",
-									marginBottom: "0.25rem",
-								}}
-							>
-								Tablas de Datos
-							</h1>
-							<p
-								style={{
-									color: "var(--muted-foreground)",
-									fontSize: "0.875rem",
-								}}
-							>
-								Explora los clics detallados y descarga informes.
-							</p>
-						</header>
-						<section className='card'>
-							<StatsTable />
-						</section>
+				<div className={styles.chartContainer}>
+					<h3>Tráfico por Campaña</h3>
+					<div style={{ flex: 1, width: "100%", height: "100%" }}>
+						<ResponsiveContainer width='100%' height='100%'>
+							<PieChart>
+								<Pie
+									data={statsCampana}
+									cx='50%'
+									cy='50%'
+									innerRadius={70}
+									outerRadius={100}
+									paddingAngle={2}
+									dataKey='clics'
+								>
+									{statsCampana.map((entry, index) => (
+										<Cell
+											key={`cell-${index}`}
+											fill={COLORES[index % COLORES.length]}
+										/>
+									))}
+								</Pie>
+								<Tooltip
+									contentStyle={{
+										borderRadius: "8px",
+										border: "1px solid var(--border)",
+									}}
+								/>
+							</PieChart>
+						</ResponsiveContainer>
 					</div>
-				)}
-			</main>
+				</div>
+			</div>
 		</div>
 	);
 }
-
-export default App;
