@@ -15,7 +15,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
-// 2. Apuntar a los archivos estáticos de React (retrocediendo una carpeta)
+// 2. Apuntar a los archivos estáticos de React
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
@@ -34,7 +34,6 @@ const initDB = async () => {
         fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
-      /* AÑADIR LA NUEVA COLUMNA SI NO EXISTE */
       ALTER TABLE clicks ADD COLUMN IF NOT EXISTS nombre_enlace VARCHAR(255);
       
       CREATE TABLE IF NOT EXISTS contactos (
@@ -43,6 +42,7 @@ const initDB = async () => {
         email VARCHAR(255) UNIQUE NOT NULL,
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      
       CREATE TABLE IF NOT EXISTS historial_envios (
         id SERIAL PRIMARY KEY,
         campana TEXT,
@@ -111,7 +111,7 @@ app.delete("/api/contactos/:email", async (req, res) => {
 	}
 });
 
-// --- ENDPOINT DE ENVÍO CON GOTEO (THROTTLING) ---
+// --- ENDPOINT DE ENVÍO CON GOTEO ---
 app.post("/api/send-background", async (req, res) => {
 	const { recipients, subject, htmlContent, mensaje } = req.body;
 	const campana = subject || "Campaña sin nombre";
@@ -153,13 +153,28 @@ app.post("/api/send-background", async (req, res) => {
 			const { email, nombre = "" } = recipients[i];
 
 			try {
+				// --- ESCUDO ANTI-DUPLICADOS ---
+				const checkDuplicado = await pool.query(
+					`SELECT id FROM historial_envios WHERE email = $1 AND campana = $2 AND estado = 'ENVIADO'`,
+					[email, campana],
+				);
+
+				if (checkDuplicado.rows.length > 0) {
+					estadoEnvio.log.push({
+						email,
+						status: "ok",
+						detalle: "⏩ Omitido (Ya recibió esta campaña)",
+					});
+					continue;
+				}
+				// ------------------------------------
+
 				let finalHtml = baseHtml;
 				if (baseHtml) {
 					const $ = cheerio.load(baseHtml);
 					$("a").each((idx, link) => {
 						const originalUrl = $(link).attr("href");
 						if (originalUrl && originalUrl.startsWith("http")) {
-							// EXTRAER EL TEXTO O EL ATRIBUTO ALT DE LA IMAGEN
 							let textName = $(link).text().trim();
 							if (!textName) {
 								textName =
@@ -170,7 +185,7 @@ app.post("/api/send-background", async (req, res) => {
 							trackUrl.searchParams.append("url", originalUrl);
 							trackUrl.searchParams.append("email", email);
 							trackUrl.searchParams.append("campana", campana);
-							trackUrl.searchParams.append("nombre_enlace", textName); // <- SE ENVÍA EL DATO
+							trackUrl.searchParams.append("nombre_enlace", textName);
 
 							$(link).attr("href", trackUrl.toString());
 						}
@@ -254,12 +269,10 @@ app.get("/api/reporte-envios", async (req, res) => {
 });
 
 app.get("/track", async (req, res) => {
-	// RECUPERAR LA NUEVA VARIABLE DESDE LA URL
 	const { url, email, campana, nombre_enlace } = req.query;
 	if (!url) return res.redirect("https://www.google.com");
 	try {
 		await pool.query(
-			// INSERTARLA EN LA BASE DE DATOS
 			`INSERT INTO clicks (email, original_url, campana, nombre_enlace) VALUES ($1, $2, $3, $4)`,
 			[email, url, campana, nombre_enlace || "Enlace"],
 		);
@@ -288,7 +301,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 		res.json(
 			(
 				await pool.query(
-					// TRAER LA NUEVA COLUMNA AL FRONTEND
 					`SELECT email, original_url, campana, fecha, nombre_enlace FROM clicks ORDER BY fecha DESC`,
 				)
 			).rows,
@@ -298,7 +310,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 	}
 });
 
-// 3. Catch-all: Si la ruta no es una API, entrégasela a React
 app.get("*", (req, res) => {
 	res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });

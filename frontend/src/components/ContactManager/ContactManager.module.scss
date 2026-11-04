@@ -87,7 +87,7 @@
 		padding-bottom: 0.35rem;
 
 		@media (max-width: 768px) {
-			width: 130px; /* Más pequeño en móviles */
+			width: 130px;
 		}
 	}
 	svg {
@@ -112,7 +112,7 @@
 	justify-content: space-between;
 	padding: 0.5rem 1rem;
 	border-bottom: 1px solid var(--muted);
-	font-size: 0.75rem; /* Letra disminuida */
+	font-size: 0.75rem;
 	gap: 1rem;
 	transition: background-color 0.2s;
 
@@ -172,5 +172,25 @@
 
 	&:hover {
 		background-color: #fee2e2;
+	}
+}
+.batchSelector {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+
+	input {
+		width: 65px;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
+		text-align: center;
+	}
+
+	button {
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 	}
 }
