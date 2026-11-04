@@ -315,32 +315,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 	}
 });
 
-// --- ENDPOINT TEMPORAL PARA LIMPIAR DATOS DE PRUEBA ---
-app.get("/api/limpiar-bd", async (req, res) => {
-	try {
-		// TRUNCATE vacía las tablas por completo y RESTART IDENTITY devuelve los IDs a 1
-		await pool.query(
-			"TRUNCATE TABLE clicks, historial_envios RESTART IDENTITY;",
-		);
-
-		// NOTA: Si también quieres borrar TODOS los contactos importados para subir una lista nueva,
-		// cambia la línea de arriba por esta:
-		// await pool.query("TRUNCATE TABLE clicks, historial_envios, contactos RESTART IDENTITY;");
-
-		res.send(`
-            <h1 style="color: green; font-family: sans-serif; text-align: center; margin-top: 50px;">
-			✅ Datos de prueba eliminados con éxito.
-            </h1>
-            <p style="text-align: center; font-family: sans-serif;">
-			Todo el historial y clics están en cero. <br>
-			<b>¡IMPORTANTE: Por seguridad, borra este endpoint de tu server.js ahora mismo y vuelve a subir el archivo!</b>
-            </p>
-			`);
-	} catch (err) {
-		res.status(500).send("Error limpiando la BD: " + err.message);
-	}
-});
-
 app.get("*", (req, res) => {
 	res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
