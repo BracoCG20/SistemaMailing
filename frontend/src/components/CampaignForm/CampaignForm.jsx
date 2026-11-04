@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { SendHorizontal, Activity } from "lucide-react";
+import { SendHorizontal, Activity, XCircle } from "lucide-react";
 import styles from "./CampaignForm.module.scss";
 
 export default function CampaignForm({ selectedContacts, onClearSelection }) {
@@ -28,7 +28,11 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 				pollingTimer.current = setTimeout(checkStatus, 2000);
 			} else if (data.total > 0 && !data.activo) {
 				setIsSending(false);
-				toast.success("¡Campaña finalizada!");
+				if (data.cancelado) {
+					toast.error("El envío fue cancelado manualmente.");
+				} else {
+					toast.success("¡Campaña finalizada!");
+				}
 				onClearSelection();
 			}
 		} catch (error) {
@@ -85,6 +89,27 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 		}
 	};
 
+	// NUEVO: Lógica para detener el envío en curso
+	const cancelarEnvio = async () => {
+		if (
+			!confirm(
+				"¿Estás seguro de detener el envío? Esto cancelará los correos restantes.",
+			)
+		)
+			return;
+		try {
+			const res = await fetch("/api/cancelar-envio", { method: "POST" });
+			const data = await res.json();
+			if (data.success) {
+				toast.success("Enviando orden de detención...");
+			}
+		} catch {
+			toast.error(
+				"No se pudo contactar con el servidor para detener el envío.",
+			);
+		}
+	};
+
 	// Limpiar timer si el componente se desmonta
 	useEffect(() => {
 		return () => clearTimeout(pollingTimer.current);
@@ -132,27 +157,44 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 				/>
 			</div>
 
-			<button
-				className='btn btn-primary'
-				style={{ width: "100%", padding: "0.75rem" }}
-				onClick={iniciarEnvio}
-				disabled={isSending}
-			>
-				{isSending ? (
-					<Activity
-						size={18}
+			<div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+				<button
+					className='btn btn-primary'
+					style={{ flex: 1, padding: "0.75rem" }}
+					onClick={iniciarEnvio}
+					disabled={isSending}
+				>
+					{isSending ? (
+						<Activity
+							size={18}
+							style={{
+								marginRight: "0.5rem",
+								animation: "spin 2s linear infinite",
+							}}
+						/>
+					) : (
+						<SendHorizontal size={18} style={{ marginRight: "0.5rem" }} />
+					)}
+					{isSending
+						? "Enviando Campaña..."
+						: `Enviar a ${selectedContacts.length} Seleccionados`}
+				</button>
+
+				{/* NUEVO: Botón de Cancelación */}
+				{isSending && (
+					<button
+						className='btn btn-outline'
 						style={{
-							marginRight: "0.5rem",
-							animation: "spin 2s linear infinite",
+							padding: "0.75rem",
+							color: "#ef4444",
+							borderColor: "#ef4444",
 						}}
-					/>
-				) : (
-					<SendHorizontal size={18} style={{ marginRight: "0.5rem" }} />
+						onClick={cancelarEnvio}
+					>
+						<XCircle size={18} style={{ marginRight: "0.5rem" }} /> Detener
+					</button>
 				)}
-				{isSending
-					? "Enviando Campaña..."
-					: `Enviar a ${selectedContacts.length} Seleccionados`}
-			</button>
+			</div>
 
 			{/* VERIFICADOR EN VIVO */}
 			{(isSending || status.total > 0) && (
@@ -173,21 +215,31 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 					<div className={styles.progressBarBg}>
 						<div
 							className={styles.progressBar}
-							style={{ width: `${porcentaje}%` }}
+							style={{
+								width: `${porcentaje}%`,
+								backgroundColor: status.cancelado
+									? "#ef4444"
+									: "var(--primary)",
+							}}
 						></div>
 					</div>
 					<ul className={styles.logList}>
 						{ultimosLogs.map((log, i) => (
 							<li key={i}>
-								{log.email === "SISTEMA" && (
+								{log.email === "SISTEMA" && log.status !== "error" && (
 									<span style={{ color: "#3b82f6" }}>🕒 {log.detalle}</span>
+								)}
+								{log.email === "SISTEMA" && log.status === "error" && (
+									<span style={{ color: "#ef4444", fontWeight: "bold" }}>
+										{log.detalle}
+									</span>
 								)}
 								{log.status === "ok" && log.email !== "SISTEMA" && (
 									<span style={{ color: "#22c55e" }}>
 										✅ Enviado: {log.email}
 									</span>
 								)}
-								{log.status === "error" && (
+								{log.status === "error" && log.email !== "SISTEMA" && (
 									<span style={{ color: "#ef4444" }}>
 										❌ Error: {log.email}
 									</span>

@@ -1,4 +1,3 @@
-//backend/server.js
 import "dotenv/config";
 import express from "express";
 import nodemailer from "nodemailer";
@@ -8,21 +7,26 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// 1. Configuración de rutas para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
-
-// 2. Apuntar a los archivos estáticos de React
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-let estadoEnvio = { activo: false, total: 0, enviados: 0, errores: 0, log: [] };
+// NUEVO: Agregado "cancelado: false"
+let estadoEnvio = {
+	activo: false,
+	cancelado: false,
+	total: 0,
+	enviados: 0,
+	errores: 0,
+	log: [],
+};
 
 const initDB = async () => {
 	try {
@@ -130,6 +134,7 @@ app.post("/api/send-background", async (req, res) => {
 
 	estadoEnvio = {
 		activo: true,
+		cancelado: false, // NUEVO: resetear al iniciar
 		total: recipients.length,
 		enviados: 0,
 		errores: 0,
@@ -151,10 +156,19 @@ app.post("/api/send-background", async (req, res) => {
 		const ESPERA_CORREO = 1000;
 
 		for (let i = 0; i < recipients.length; i++) {
+			// NUEVO: COMPROBACIÓN DE CANCELACIÓN
+			if (estadoEnvio.cancelado) {
+				estadoEnvio.log.push({
+					email: "SISTEMA",
+					status: "error",
+					detalle: "🛑 Envío cancelado manualmente.",
+				});
+				break; // Romper bucle si el usuario canceló
+			}
+
 			const { email, nombre = "" } = recipients[i];
 
 			try {
-				// --- ESCUDO ANTI-DUPLICADOS ---
 				const checkDuplicado = await pool.query(
 					`SELECT id FROM historial_envios WHERE email = $1 AND campana = $2 AND estado = 'ENVIADO'`,
 					[email, campana],
@@ -168,7 +182,6 @@ app.post("/api/send-background", async (req, res) => {
 					});
 					continue;
 				}
-				// ------------------------------------
 
 				let finalHtml = baseHtml;
 				if (baseHtml) {
@@ -239,6 +252,16 @@ app.post("/api/send-background", async (req, res) => {
 
 app.get("/api/status-envio", (req, res) => res.json(estadoEnvio));
 
+// NUEVO: ENDPOINT PARA CANCELAR ENVÍOS EN CURSO
+app.post("/api/cancelar-envio", (req, res) => {
+	if (estadoEnvio.activo) {
+		estadoEnvio.cancelado = true;
+		res.json({ success: true, message: "Deteniendo envío..." });
+	} else {
+		res.status(400).json({ error: "No hay envíos activos para detener." });
+	}
+});
+
 // --- REPORTES Y ESTADÍSTICAS ---
 app.get("/api/reporte-envios", async (req, res) => {
 	try {
@@ -302,7 +325,6 @@ app.get("/api/clicks-detail", async (req, res) => {
 		res.json(
 			(
 				await pool.query(
-					// NUEVO: JOIN con tabla contactos para extraer el nombre del usuario
 					`SELECT c.email, co.nombre as usuario_nombre, c.original_url, c.campana, c.fecha, c.nombre_enlace 
                      FROM clicks c 
                      LEFT JOIN contactos co ON c.email = co.email 
@@ -315,8 +337,28 @@ app.get("/api/clicks-detail", async (req, res) => {
 	}
 });
 
+app.get("/api/limpiar-bd", async (req, res) => {
+	try {
+		await pool.query(
+			"TRUNCATE TABLE clicks, historial_envios RESTART IDENTITY;",
+		);
+		res.send(`
+            <h1 style="color: green; font-family: sans-serif; text-align: center; margin-top: 50px;">
+                ✅ Datos de prueba eliminados con éxito.
+            </h1>
+            <p style="text-align: center; font-family: sans-serif;">
+                Todo el historial y clics están en cero. <br>
+                <b>¡IMPORTANTE: Por seguridad, borra este endpoint de tu server.js ahora mismo y vuelve a subir el archivo!</b>
+            </p>
+        `);
+	} catch (err) {
+		res.status(500).send("Error limpiando la BD: " + err.message);
+	}
+});
+
 app.get("*", (req, res) => {
 	res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend ejecutándose en puerto ${PORT}`));
