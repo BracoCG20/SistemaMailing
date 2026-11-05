@@ -1,3 +1,4 @@
+// frontend/src/components/CampaignForm/CampaignForm.jsx
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { SendHorizontal, Activity, XCircle } from "lucide-react";
@@ -25,21 +26,35 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 			setStatus(data);
 
 			if (data.activo) {
-				pollingTimer.current = setTimeout(checkStatus, 2000);
+				setIsSending(true);
+				pollingTimer.current = setTimeout(checkStatus, 2500);
 			} else if (data.total > 0 && !data.activo) {
-				setIsSending(false);
-				if (data.cancelado) {
-					toast.error("El envío fue cancelado manualmente.");
-				} else {
-					toast.success("¡Campaña finalizada!");
-				}
-				onClearSelection();
+				setIsSending((prevSending) => {
+					if (prevSending) {
+						if (data.cancelado) {
+							toast.error(
+								"El envío se detuvo. Revisa el registro de actividad.",
+							);
+						} else {
+							toast.success("¡Campaña finalizada!");
+						}
+						onClearSelection();
+					}
+					return false;
+				});
 			}
 		} catch (error) {
 			console.error(error);
-			pollingTimer.current = setTimeout(checkStatus, 3000); // Reintentar si hay fallo de red
+			pollingTimer.current = setTimeout(checkStatus, 4000);
 		}
 	};
+
+	// NUEVO: Al abrir la vista, verificar automáticamente si hay una campaña activa en el VPS
+	useEffect(() => {
+		checkStatus();
+		return () => clearTimeout(pollingTimer.current);
+		// eslint-disable-next-line
+	}, []);
 
 	const iniciarEnvio = async () => {
 		if (selectedContacts.length === 0)
@@ -57,7 +72,7 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 				{
 					email: "SISTEMA",
 					status: "ok",
-					detalle: "Enviando orden al servidor...",
+					detalle: "Registrando cola segura en el servidor...",
 				},
 			],
 		});
@@ -81,15 +96,14 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 				return;
 			}
 
-			toast.success("Envío en segundo plano iniciado.");
-			checkStatus(); // Iniciar polling
+			toast.success("Campaña en cola e iniciada en segundo plano.");
+			checkStatus();
 		} catch {
 			toast.error("Error de conexión con el servidor.");
 			setIsSending(false);
 		}
 	};
 
-	// NUEVO: Lógica para detener el envío en curso
 	const cancelarEnvio = async () => {
 		if (
 			!confirm(
@@ -110,16 +124,11 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 		}
 	};
 
-	// Limpiar timer si el componente se desmonta
-	useEffect(() => {
-		return () => clearTimeout(pollingTimer.current);
-	}, []);
-
 	const porcentaje =
 		status.total > 0
 			? Math.round(((status.enviados + status.errores) / status.total) * 100)
 			: 0;
-	const ultimosLogs = status.log.slice(-10).reverse();
+	const ultimosLogs = status.log ? status.log.slice(-15).reverse() : [];
 
 	return (
 		<div>
@@ -135,13 +144,13 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 			</div>
 
 			<div className={styles.formGroup}>
-				<label>Mensaje (Opcional):</label>
+				<label>Mensaje (Opcional - puedes usar {"{{nombre}}"}):</label>
 				<textarea
 					className='textarea'
 					rows='3'
 					value={mensaje}
 					onChange={(e) => setMensaje(e.target.value)}
-					placeholder='Escribe un mensaje...'
+					placeholder='Hola {{nombre}}, te compartimos nuestras novedades...'
 				/>
 			</div>
 
@@ -176,11 +185,10 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 						<SendHorizontal size={18} style={{ marginRight: "0.5rem" }} />
 					)}
 					{isSending
-						? "Enviando Campaña..."
+						? "Campaña en Curso (En Cola)..."
 						: `Enviar a ${selectedContacts.length} Seleccionados`}
 				</button>
 
-				{/* NUEVO: Botón de Cancelación */}
 				{isSending && (
 					<button
 						className='btn btn-outline'
@@ -196,7 +204,7 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 				)}
 			</div>
 
-			{/* VERIFICADOR EN VIVO */}
+			{/* VERIFICADOR EN VIVO CON DETALLE DE ERRORES Y ADVERTENCIAS */}
 			{(isSending || status.total > 0) && (
 				<div className={styles.progressContainer}>
 					<div
@@ -208,7 +216,12 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 						}}
 					>
 						<span>
-							Enviando: {status.enviados + status.errores} de {status.total}
+							Procesados: {status.enviados + status.errores} de {status.total}{" "}
+							{status.errores > 0 && (
+								<span style={{ color: "#ef4444" }}>
+									({status.errores} fallidos)
+								</span>
+							)}
 						</span>
 						<span>{porcentaje}%</span>
 					</div>
@@ -227,21 +240,24 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 						{ultimosLogs.map((log, i) => (
 							<li key={i}>
 								{log.email === "SISTEMA" && log.status !== "error" && (
-									<span style={{ color: "#3b82f6" }}>🕒 {log.detalle}</span>
+									<span style={{ color: "#2563eb", fontWeight: "500" }}>
+										ℹ️ {log.detalle}
+									</span>
 								)}
 								{log.email === "SISTEMA" && log.status === "error" && (
-									<span style={{ color: "#ef4444", fontWeight: "bold" }}>
+									<span style={{ color: "#dc2626", fontWeight: "bold" }}>
 										{log.detalle}
 									</span>
 								)}
 								{log.status === "ok" && log.email !== "SISTEMA" && (
-									<span style={{ color: "#22c55e" }}>
-										✅ Enviado: {log.email}
+									<span style={{ color: "#16a34a" }}>
+										✅ {log.email}{" "}
+										<span style={{ color: "#71717a" }}>{log.detalle}</span>
 									</span>
 								)}
 								{log.status === "error" && log.email !== "SISTEMA" && (
-									<span style={{ color: "#ef4444" }}>
-										❌ Error: {log.email}
+									<span style={{ color: "#dc2626" }}>
+										❌ <strong>{log.email}</strong>: {log.detalle}
 									</span>
 								)}
 							</li>

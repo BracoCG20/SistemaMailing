@@ -1,3 +1,4 @@
+// frontend/src/components/StatsTable/StatsTable.jsx
 import { useState, useEffect, Fragment } from "react";
 import {
 	RefreshCcw,

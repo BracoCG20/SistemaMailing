@@ -1,3 +1,4 @@
+//frontend/src/components/Dashboard/Dashboard.jsx
 import { useState, useEffect } from "react";
 import {
 	BarChart,
