@@ -1,5 +1,4 @@
-//frontend/src/components/ContactManager/ContactManager.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Upload, Trash2, Search, Users, ListChecks } from "lucide-react";
@@ -14,9 +13,10 @@ export default function ContactManager({
 	const [textPaste, setTextPaste] = useState("");
 	const [isProcessing, setIsProcessing] = useState(false);
 
-	// NUEVOS CONTROLES PARA AVANCE INTELIGENTE DE LOTES
 	const [loteStart, setLoteStart] = useState(1);
 	const [loteSize, setLoteSize] = useState(100);
+
+	const fileInputRef = useRef(null);
 
 	const cargarContactos = async () => {
 		try {
@@ -34,8 +34,8 @@ export default function ContactManager({
 	}, []);
 
 	const procesarImportacion = async () => {
-		const file = document.getElementById("fileExcel").files[0];
-		let nuevosContactos = [];
+		const file = fileInputRef.current?.files?.[0];
+		const nuevosContactos = [];
 		setIsProcessing(true);
 
 		try {
@@ -59,7 +59,10 @@ export default function ContactManager({
 			if (textPaste) {
 				const lineas = textPaste.split("\n");
 				lineas.forEach((linea) => {
-					const partes = linea.split(/[\t,;]+/).map((s) => s.trim());
+					const partes = linea
+						.split(/[\t,;]+/)
+						.map((s) => s.trim())
+						.filter(Boolean);
 					if (partes.length > 0) {
 						const email = partes[partes.length - 1];
 						const nombre = partes.length > 1 ? partes[0] : "";
@@ -82,19 +85,22 @@ export default function ContactManager({
 			const data = await res.json();
 
 			toast.success(`¡${data.procesados} contactos guardados!`);
-			document.getElementById("fileExcel").value = "";
+			if (fileInputRef.current) fileInputRef.current.value = "";
 			setTextPaste("");
 			cargarContactos();
 		} catch {
 			toast.error("Error al procesar y guardar contactos.");
+		} finally {
+			setIsProcessing(false);
 		}
-		setIsProcessing(false);
 	};
 
 	const eliminarContacto = async (email) => {
 		if (!confirm(`¿Eliminar a ${email}?`)) return;
 		try {
-			await fetch(`/api/contactos/${email}`, { method: "DELETE" });
+			await fetch(`/api/contactos/${encodeURIComponent(email)}`, {
+				method: "DELETE",
+			});
 			toast.success("Contacto eliminado");
 			setSelectedContacts((prev) => prev.filter((c) => c.email !== email));
 			cargarContactos();
@@ -117,7 +123,9 @@ export default function ContactManager({
 		try {
 			await Promise.all(
 				selectedContacts.map((c) =>
-					fetch(`/api/contactos/${c.email}`, { method: "DELETE" }),
+					fetch(`/api/contactos/${encodeURIComponent(c.email)}`, {
+						method: "DELETE",
+					}),
 				),
 			);
 
@@ -126,25 +134,31 @@ export default function ContactManager({
 			cargarContactos();
 		} catch {
 			toast.error("Error al eliminar algunos usuarios.");
+		} finally {
+			setIsProcessing(false);
 		}
-		setIsProcessing(false);
 	};
 
-	const filtrados = contactos.filter(
-		(c) =>
-			(c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
-			c.email.toLowerCase().includes(filtro.toLowerCase()),
+	// Filtrado memorizado para no recalcular innecesariamente
+	const filtrados = useMemo(() => {
+		const query = filtro.toLowerCase();
+		return contactos.filter(
+			(c) =>
+				(c.nombre && c.nombre.toLowerCase().includes(query)) ||
+				c.email.toLowerCase().includes(query),
+		);
+	}, [contactos, filtro]);
+
+	// Set O(1) para verificar selección instantáneamente en listas de miles de contactos
+	const selectedEmailsSet = useMemo(
+		() => new Set(selectedContacts.map((sc) => sc.email)),
+		[selectedContacts],
 	);
 
 	const handleSelectAll = (e) => {
-		if (e.target.checked) {
-			setSelectedContacts(filtrados);
-		} else {
-			setSelectedContacts([]);
-		}
+		setSelectedContacts(e.target.checked ? filtrados : []);
 	};
 
-	// NUEVA LÓGICA: SELECCIÓN AVANZADA POR RANGOS
 	const handleSelectLote = () => {
 		const inicio = parseInt(loteStart, 10) || 1;
 		const cantidad = parseInt(loteSize, 10) || 0;
@@ -152,7 +166,7 @@ export default function ContactManager({
 		if (inicio <= 0 || cantidad <= 0)
 			return toast.error("Ingresa valores válidos");
 
-		const indexInicio = inicio - 1; // Convertir a índice de array (0-based)
+		const indexInicio = inicio - 1;
 		const lote = filtrados.slice(indexInicio, indexInicio + cantidad);
 
 		if (lote.length === 0)
@@ -163,7 +177,6 @@ export default function ContactManager({
 			`Seleccionados del ${inicio} al ${inicio + lote.length - 1}.`,
 		);
 
-		// Auto-avanzar el contador para el siguiente lote
 		setLoteStart(inicio + lote.length);
 	};
 
@@ -179,18 +192,18 @@ export default function ContactManager({
 
 	const todosSeleccionados =
 		filtrados.length > 0 &&
-		filtrados.every((f) => selectedContacts.some((sc) => sc.email === f.email));
+		filtrados.every((f) => selectedEmailsSet.has(f.email));
 
 	return (
-		<div>
+		<div className={styles.contactManager}>
+			{/* MÓDULO DE IMPORTACIÓN */}
 			<div className={styles.uploadModule}>
 				<p className={styles.title}>Importar Contactos Masivos</p>
 				<input
+					ref={fileInputRef}
 					type='file'
-					id='fileExcel'
 					accept='.xlsx, .xls, .csv'
-					className='input'
-					style={{ marginBottom: "0.5rem" }}
+					className={`input ${styles.fileInput}`}
 				/>
 				<textarea
 					className='textarea'
@@ -200,73 +213,47 @@ export default function ContactManager({
 					onChange={(e) => setTextPaste(e.target.value)}
 				/>
 				<button
-					className='btn btn-outline'
-					style={{ width: "100%", marginTop: "0.5rem" }}
+					className={`btn btn-outline ${styles.uploadBtn}`}
 					onClick={procesarImportacion}
 					disabled={isProcessing}
 				>
-					<Upload size={16} style={{ marginRight: "0.5rem" }} />
+					<Upload size={15} />
 					{isProcessing ? "Procesando..." : "Procesar y Guardar"}
 				</button>
 			</div>
 
+			{/* BARRA DE HERRAMIENTAS Y LOTES */}
 			<div className={styles.toolbar}>
 				<div className={styles.toolbarLeft}>
 					<label className={styles.selectAllLabel}>
 						<input
 							type='checkbox'
+							className={styles.checkbox}
 							checked={todosSeleccionados}
 							onChange={handleSelectAll}
 						/>
 						Todos
 					</label>
 
-					{/* PANEL DE LOTES MEJORADO */}
-					<div
-						className={styles.batchSelector}
-						style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-					>
-						<span
-							style={{
-								fontSize: "0.75rem",
-								fontWeight: "600",
-								color: "var(--muted-foreground)",
-							}}
-						>
-							Desde:
-						</span>
+					<div className={styles.batchSelector}>
+						<span className={styles.batchLabel}>Desde:</span>
 						<input
 							type='number'
 							className='input'
 							value={loteStart}
 							onChange={(e) => setLoteStart(e.target.value)}
 							title='Posición de inicio (Ej: 1)'
-							style={{ width: "65px", padding: "0.25rem", textAlign: "center" }}
 						/>
-						<span
-							style={{
-								fontSize: "0.75rem",
-								fontWeight: "600",
-								color: "var(--muted-foreground)",
-							}}
-						>
-							Cant:
-						</span>
+						<span className={styles.batchLabel}>Cant:</span>
 						<input
 							type='number'
 							className='input'
 							value={loteSize}
 							onChange={(e) => setLoteSize(e.target.value)}
 							title='Cantidad a seleccionar'
-							style={{ width: "65px", padding: "0.25rem", textAlign: "center" }}
 						/>
-						<button
-							className='btn btn-outline'
-							onClick={handleSelectLote}
-							style={{ padding: "0.25rem 0.5rem" }}
-						>
-							<ListChecks size={14} style={{ marginRight: "0.25rem" }} />{" "}
-							Seleccionar
+						<button className='btn btn-outline' onClick={handleSelectLote}>
+							<ListChecks size={14} /> Seleccionar
 						</button>
 					</div>
 
@@ -275,15 +262,16 @@ export default function ContactManager({
 							className={styles.bulkDeleteBtn}
 							onClick={eliminarSeleccionados}
 							disabled={isProcessing}
+							title='Eliminar seleccionados'
 						>
-							<Trash2 size={14} /> ({selectedContacts.length})
+							<Trash2 size={13} /> ({selectedContacts.length})
 						</button>
 					)}
 				</div>
 
 				<div className={styles.toolbarRight}>
 					<span className={styles.totalBadge}>
-						<Users size={14} /> {contactos.length} Totales
+						<Users size={13} /> {contactos.length} Totales
 					</span>
 					<div className={styles.searchBox}>
 						<Search size={14} />
@@ -298,47 +286,25 @@ export default function ContactManager({
 				</div>
 			</div>
 
+			{/* LISTA DE CONTACTOS */}
 			<div className={styles.contactList}>
 				{filtrados.length === 0 ? (
-					<p
-						style={{
-							textAlign: "center",
-							color: "var(--muted-foreground)",
-							marginTop: "2rem",
-							fontSize: "0.75rem",
-						}}
-					>
-						No hay resultados.
-					</p>
+					<p className={styles.emptyState}>No hay resultados.</p>
 				) : (
 					filtrados.map((c, index) => {
-						const isChecked = selectedContacts.some(
-							(sc) => sc.email === c.email,
-						);
+						const isChecked = selectedEmailsSet.has(c.email);
 						return (
-							<div key={c.email} className={styles.contactItem}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "0.75rem",
-									}}
-								>
-									<span
-										style={{
-											fontSize: "0.65rem",
-											color: "var(--muted-foreground)",
-											width: "25px",
-											textAlign: "right",
-										}}
-									>
-										{index + 1}.
-									</span>
+							<div
+								key={c.email}
+								className={`${styles.contactItem} ${isChecked ? styles.contactItemSelected : ""}`}
+							>
+								<div className={styles.itemLeft}>
+									<span className={styles.itemIndex}>{index + 1}.</span>
 									<input
 										type='checkbox'
+										className={styles.checkbox}
 										checked={isChecked}
 										onChange={(e) => handleSelectOne(c, e.target.checked)}
-										style={{ cursor: "pointer" }}
 									/>
 								</div>
 
@@ -348,9 +314,7 @@ export default function ContactManager({
 								>
 									<span className={styles.contactName}>
 										{c.nombre || (
-											<span style={{ color: "var(--muted-foreground)" }}>
-												Sin Nombre
-											</span>
+											<span className={styles.noName}>Sin Nombre</span>
 										)}
 									</span>
 									<span className={styles.contactEmail}>{c.email}</span>
@@ -359,6 +323,7 @@ export default function ContactManager({
 								<button
 									className={styles.deleteBtn}
 									onClick={() => eliminarContacto(c.email)}
+									title={`Eliminar ${c.email}`}
 								>
 									<Trash2 size={14} />
 								</button>

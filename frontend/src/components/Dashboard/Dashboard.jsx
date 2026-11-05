@@ -1,4 +1,3 @@
-//frontend/src/components/Dashboard/Dashboard.jsx
 import { useState, useEffect } from "react";
 import {
 	BarChart,
@@ -13,25 +12,19 @@ import {
 } from "recharts";
 import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import {
+	COLORES_GRAFICOS,
+	obtenerNombreReal,
+	esClickValido,
+	esArtistaValido,
+} from "../../utils/campaigns.utils";
 import styles from "./Dashboard.module.scss";
 
-const MAPA_ARTISTAS = {
-	maxou: "Santi Chávez",
-	Fd0k_franco: "Franco Finocchiaro",
-	GtQV_Fertil_Florian: "Florian Florian",
-	"0ncP_Alvaro_luque": "Álvaro Luque",
-	qfg6u: "Julián Fernández",
-	qu4L_Guido_Barbosch: "Guido Barbosh",
-};
-
-const obtenerNombreReal = (url, nombreOriginal) => {
-	if (url && url.includes("simian.me/")) {
-		const urlId = url.split("simian.me/")[1]?.split("?")[0];
-		if (urlId && MAPA_ARTISTAS[urlId]) {
-			return MAPA_ARTISTAS[urlId];
-		}
-	}
-	return nombreOriginal;
+const TOOLTIP_STYLE = {
+	borderRadius: "8px",
+	border: "1px solid var(--border)",
+	fontSize: "0.75rem",
+	boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
 };
 
 export default function Dashboard() {
@@ -44,75 +37,43 @@ export default function Dashboard() {
 	});
 	const [loading, setLoading] = useState(true);
 
-	const COLORES = [
-		"#18181b",
-		"#107c41",
-		"#3f3f46",
-		"#71717a",
-		"#a1a1aa",
-		"#d4d4d8",
-	];
-
 	useEffect(() => {
 		const cargarMetricas = async () => {
 			try {
 				const res = await fetch("/api/clicks-detail");
 				const dataRaw = await res.json();
 
-				// NUEVO FILTRO ANTI-FANTASMAS
-				const data = dataRaw.filter(
-					(item) =>
-						item.email &&
-						item.email !== "null" &&
-						item.email !== "undefined" &&
-						item.campana &&
-						item.campana !== "null" &&
-						item.campana !== "FRTIL - Directores",
-				);
-
+				const data = dataRaw.filter(esClickValido);
 				const agrupadoCampana = {};
 				const agrupadoArtista = {};
-				let totalClics = data.length;
 
 				data.forEach((item) => {
 					agrupadoCampana[item.campana] =
 						(agrupadoCampana[item.campana] || 0) + 1;
 
-					let artista = obtenerNombreReal(
+					const artista = obtenerNombreReal(
 						item.original_url,
 						item.nombre_enlace,
 					);
 
-					if (
-						artista &&
-						artista !== "-" &&
-						!artista.includes("www.fertil.tv") &&
-						!artista.toLowerCase().includes("instagram") &&
-						!artista.toLowerCase().includes("linkedin")
-					) {
+					if (esArtistaValido(artista)) {
 						agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
 					}
 				});
 
-				const dataCampana = Object.keys(agrupadoCampana)
-					.map((key) => ({
-						name: key,
-						clics: agrupadoCampana[key],
-					}))
+				const dataCampana = Object.entries(agrupadoCampana)
+					.map(([name, clics]) => ({ name, clics }))
 					.sort((a, b) => b.clics - a.clics);
 
-				const dataArtista = Object.keys(agrupadoArtista)
-					.map((key) => ({
-						name: key,
-						clics: agrupadoArtista[key],
-					}))
+				const dataArtista = Object.entries(agrupadoArtista)
+					.map(([name, clics]) => ({ name, clics }))
 					.sort((a, b) => b.clics - a.clics)
 					.slice(0, 7);
 
 				setStatsCampana(dataCampana);
 				setStatsArtista(dataArtista);
 				setTotales({
-					clics: totalClics,
+					clics: data.length,
 					campanas: dataCampana.length,
 					mejorArtista:
 						dataArtista.length > 0 ? dataArtista[0].name : "Ninguno",
@@ -127,26 +88,26 @@ export default function Dashboard() {
 		cargarMetricas();
 	}, []);
 
-	if (loading)
-		return (
-			<p style={{ color: "var(--muted-foreground)" }}>Cargando métricas...</p>
-		);
+	if (loading) {
+		return <p className={styles.loadingState}>Cargando métricas...</p>;
+	}
 
 	return (
-		<div>
+		<div className={styles.dashboard}>
+			{/* TARJETAS KPI ESTILO SHADCN */}
 			<div className={styles.dashboardGrid}>
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
 						<span>Clics Totales Históricos</span>
-						<MousePointerClick size={18} color='var(--primary)' />
+						<MousePointerClick size={16} color='var(--primary)' />
 					</div>
 					<span className={styles.cardValue}>{totales.clics}</span>
 				</div>
 
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
-						<span>Campañas Enviadas</span>
-						<TrendingUp size={18} color='#107c41' />
+						<span>Campañas con Tráfico</span>
+						<TrendingUp size={16} color='#107c41' />
 					</div>
 					<span className={styles.cardValue}>{totales.campanas}</span>
 				</div>
@@ -154,83 +115,87 @@ export default function Dashboard() {
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
 						<span>Director más visto</span>
-						<Trophy size={18} color='#eab308' />
+						<Trophy size={16} color='#eab308' />
 					</div>
-					<span
-						className={styles.cardValue}
-						style={{ fontSize: "1.25rem", marginTop: "0.25rem" }}
-					>
+					<span className={`${styles.cardValue} ${styles.cardHighlight}`}>
 						{totales.mejorArtista}
 					</span>
 				</div>
 			</div>
 
+			{/* GRÁFICOS */}
 			<div className={styles.chartsGrid}>
 				<div className={styles.chartContainer}>
-					<h3>Ranking de Directores por Clics</h3>
-					<div style={{ flex: 1, width: "100%", height: "100%" }}>
-						<ResponsiveContainer width='100%' height='100%'>
-							<BarChart
-								data={statsArtista}
-								layout='vertical'
-								margin={{ top: 0, right: 30, left: 30, bottom: 0 }}
-							>
-								<XAxis type='number' hide />
-								<YAxis
-									dataKey='name'
-									type='category'
-									axisLine={false}
-									tickLine={false}
-									tick={{ fill: "var(--foreground)", fontSize: 12 }}
-									width={140}
-								/>
-								<Tooltip
-									cursor={{ fill: "var(--muted)" }}
-									contentStyle={{
-										borderRadius: "8px",
-										border: "1px solid var(--border)",
-									}}
-								/>
-								<Bar
-									dataKey='clics'
-									fill='var(--primary)'
-									radius={[0, 4, 4, 0]}
-									barSize={24}
-								/>
-							</BarChart>
-						</ResponsiveContainer>
+					<div className={styles.chartHeader}>
+						<h3>Ranking de Directores por Clics</h3>
+						<p>Top 7 enlaces de portafolio más visitados</p>
+					</div>
+					<div className={styles.chartBody}>
+						{statsArtista.length === 0 ? (
+							<p className={styles.emptyChart}>Sin datos suficientes</p>
+						) : (
+							<ResponsiveContainer width='100%' height='100%'>
+								<BarChart
+									data={statsArtista}
+									layout='vertical'
+									margin={{ top: 0, right: 24, left: 10, bottom: 0 }}
+								>
+									<XAxis type='number' hide />
+									<YAxis
+										dataKey='name'
+										type='category'
+										axisLine={false}
+										tickLine={false}
+										tick={{ fill: "var(--foreground)", fontSize: 12 }}
+										width={135}
+									/>
+									<Tooltip
+										cursor={{ fill: "var(--muted)" }}
+										contentStyle={TOOLTIP_STYLE}
+									/>
+									<Bar
+										dataKey='clics'
+										fill='var(--primary)'
+										radius={[0, 4, 4, 0]}
+										barSize={22}
+									/>
+								</BarChart>
+							</ResponsiveContainer>
+						)}
 					</div>
 				</div>
 
 				<div className={styles.chartContainer}>
-					<h3>Tráfico por Campaña</h3>
-					<div style={{ flex: 1, width: "100%", height: "100%" }}>
-						<ResponsiveContainer width='100%' height='100%'>
-							<PieChart>
-								<Pie
-									data={statsCampana}
-									cx='50%'
-									cy='50%'
-									innerRadius={70}
-									outerRadius={100}
-									paddingAngle={2}
-									dataKey='clics'
-								>
-									{statsCampana.map((entry, index) => (
-										<Cell
-											key={`cell-${index}`}
-											fill={COLORES[index % COLORES.length]}
-										/>
-									))}
-								</Pie>
-								<Tooltip
-									contentStyle={{
-										borderRadius: "8px",
-										border: "1px solid var(--border)",
-									}}
-								/>
-							</PieChart>
-						</ResponsiveContainer>
+					<div className={styles.chartHeader}>
+						<h3>Tráfico por Campaña</h3>
+						<p>Distribución proporcional de clics acumulados</p>
+					</div>
+					<div className={styles.chartBody}>
+						{statsCampana.length === 0 ? (
+							<p className={styles.emptyChart}>Sin datos suficientes</p>
+						) : (
+							<ResponsiveContainer width='100%' height='100%'>
+								<PieChart>
+									<Pie
+										data={statsCampana}
+										cx='50%'
+										cy='50%'
+										innerRadius={68}
+										outerRadius={98}
+										paddingAngle={2}
+										dataKey='clics'
+									>
+										{statsCampana.map((_, index) => (
+											<Cell
+												key={`cell-${index}`}
+												fill={COLORES_GRAFICOS[index % COLORES_GRAFICOS.length]}
+											/>
+										))}
+									</Pie>
+									<Tooltip contentStyle={TOOLTIP_STYLE} />
+								</PieChart>
+							</ResponsiveContainer>
+						)}
 					</div>
 				</div>
 			</div>
