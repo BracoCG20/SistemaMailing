@@ -10,7 +10,6 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import styles from "./StatsTable.module.scss";
 
-// EL MISMO MAPA DE CORRECCIÓN
 const MAPA_ARTISTAS = {
 	maxou: "Santi Chávez",
 	Fd0k_franco: "Franco Finocchiaro",
@@ -49,14 +48,37 @@ export default function StatsTable() {
 				fetch("/api/stats"),
 				fetch("/api/clicks-detail"),
 			]);
-			setStats(await resStats.json());
 
-			// CORREGIMOS LOS DETALLES AL CARGARLOS
-			const datosBrutos = await resDetail.json();
-			const datosCorregidos = datosBrutos.map((item) => ({
-				...item,
-				nombre_enlace: obtenerNombreReal(item.original_url, item.nombre_enlace),
-			}));
+			const statsRaw = await resStats.json();
+			const detallesRaw = await resDetail.json();
+
+			// FILTRAMOS ESTADISTICAS BRUTAS
+			const statsLimpio = statsRaw.filter(
+				(s) =>
+					s.campana &&
+					s.campana !== "null" &&
+					s.campana !== "FRTIL - Directores",
+			);
+			setStats(statsLimpio);
+
+			// CORREGIMOS Y FILTRAMOS LOS DETALLES
+			const datosCorregidos = detallesRaw
+				.filter(
+					(item) =>
+						item.email &&
+						item.email !== "null" &&
+						item.email !== "undefined" &&
+						item.campana &&
+						item.campana !== "null" &&
+						item.campana !== "FRTIL - Directores",
+				)
+				.map((item) => ({
+					...item,
+					nombre_enlace: obtenerNombreReal(
+						item.original_url,
+						item.nombre_enlace,
+					),
+				}));
 
 			setDetalles(datosCorregidos);
 		} catch {

@@ -232,7 +232,7 @@ app.post("/api/send-background", async (req, res) => {
 					detalle: error.message,
 				});
 
-				// NUEVO: AUTO-PAUSA DE EMERGENCIA
+				// AUTO-PAUSA DE EMERGENCIA
 				if (estadoEnvio.errores >= 3) {
 					estadoEnvio.cancelado = true;
 					estadoEnvio.log.push({
@@ -271,6 +271,44 @@ app.post("/api/cancelar-envio", (req, res) => {
 	}
 });
 
+// --- ENDPOINT PARA LIMPIAR REBOTES AUTOMÁTICAMENTE ---
+app.post("/api/limpiar-rebotes", async (req, res) => {
+	const { textoError } = req.body;
+	if (!textoError) return res.status(400).json({ error: "Texto vacío" });
+
+	const regexCorreos = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+	const correosEncontrados = textoError.match(regexCorreos);
+
+	if (!correosEncontrados) {
+		return res.json({
+			eliminados: 0,
+			mensaje: "No se detectaron correos en el texto.",
+		});
+	}
+
+	const correosUnicos = [...new Set(correosEncontrados)];
+	const aEliminar = correosUnicos.filter(
+		(email) =>
+			!email.includes("google.com") &&
+			!email.includes("outlook.com") &&
+			!email.includes("ppops.net"),
+	);
+
+	let borrados = 0;
+	try {
+		for (const email of aEliminar) {
+			const result = await pool.query(
+				"DELETE FROM contactos WHERE email = $1",
+				[email],
+			);
+			if (result.rowCount > 0) borrados++;
+		}
+		res.json({ eliminados: borrados, correos: aEliminar });
+	} catch (err) {
+		res.status(500).json({ error: "Error eliminando contactos." });
+	}
+});
+
 // --- REPORTES Y ESTADÍSTICAS ---
 app.get("/api/reporte-envios", async (req, res) => {
 	try {
@@ -304,6 +342,17 @@ app.get("/api/reporte-envios", async (req, res) => {
 app.get("/track", async (req, res) => {
 	const { url, email, campana, nombre_enlace } = req.query;
 	if (!url) return res.redirect("https://www.google.com");
+
+	// NUEVO: FILTRO ANTI-FANTASMAS Y BOTS
+	if (
+		!email ||
+		email === "null" ||
+		email === "undefined" ||
+		email.trim() === ""
+	) {
+		return res.redirect(url);
+	}
+
 	try {
 		await pool.query(
 			`INSERT INTO clicks (email, original_url, campana, nombre_enlace) VALUES ($1, $2, $3, $4)`,

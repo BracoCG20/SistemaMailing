@@ -14,7 +14,6 @@ import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./Dashboard.module.scss";
 
-// MAPA DE ARTISTAS BASADO EN SUS URLS ÚNICAS
 const MAPA_ARTISTAS = {
 	maxou: "Santi Chávez",
 	Fd0k_franco: "Franco Finocchiaro",
@@ -25,14 +24,12 @@ const MAPA_ARTISTAS = {
 };
 
 const obtenerNombreReal = (url, nombreOriginal) => {
-	// Si la URL es de Simian, buscamos su código en el mapa
 	if (url && url.includes("simian.me/")) {
 		const urlId = url.split("simian.me/")[1]?.split("?")[0];
 		if (urlId && MAPA_ARTISTAS[urlId]) {
 			return MAPA_ARTISTAS[urlId];
 		}
 	}
-	// Si no está en el mapa, devolvemos el original
 	return nombreOriginal;
 };
 
@@ -59,7 +56,18 @@ export default function Dashboard() {
 		const cargarMetricas = async () => {
 			try {
 				const res = await fetch("/api/clicks-detail");
-				const data = await res.json();
+				const dataRaw = await res.json();
+
+				// NUEVO FILTRO ANTI-FANTASMAS
+				const data = dataRaw.filter(
+					(item) =>
+						item.email &&
+						item.email !== "null" &&
+						item.email !== "undefined" &&
+						item.campana &&
+						item.campana !== "null" &&
+						item.campana !== "FRTIL - Directores",
+				);
 
 				const agrupadoCampana = {};
 				const agrupadoArtista = {};
@@ -69,13 +77,11 @@ export default function Dashboard() {
 					agrupadoCampana[item.campana] =
 						(agrupadoCampana[item.campana] || 0) + 1;
 
-					// REGLAS DE FILTRADO Y MAPEO
 					let artista = obtenerNombreReal(
 						item.original_url,
 						item.nombre_enlace,
 					);
 
-					// Omitimos clics a la web principal o redes sociales en el ranking de directores
 					if (
 						artista &&
 						artista !== "-" &&
