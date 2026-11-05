@@ -1,4 +1,4 @@
-// frontend/src/components/CampaignForm/CampaignForm.jsx
+//frontend/src/components/CampaignForm/CampaignForm.jsx
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { SendHorizontal, Activity, XCircle } from "lucide-react";
@@ -9,7 +9,6 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 	const [mensaje, setMensaje] = useState("");
 	const [htmlContent, setHtmlContent] = useState("");
 
-	// Estado del proceso
 	const [isSending, setIsSending] = useState(false);
 	const [status, setStatus] = useState({
 		total: 0,
@@ -49,7 +48,6 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 		}
 	};
 
-	// NUEVO: Al abrir la vista, verificar automáticamente si hay una campaña activa en el VPS
 	useEffect(() => {
 		checkStatus();
 		return () => clearTimeout(pollingTimer.current);
@@ -131,9 +129,9 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 	const ultimosLogs = status.log ? status.log.slice(-15).reverse() : [];
 
 	return (
-		<div>
+		<div className={styles.campaignForm}>
 			<div className={styles.formGroup}>
-				<label>Asunto del correo:</label>
+				<label>Asunto del correo</label>
 				<input
 					className='input'
 					type='text'
@@ -144,7 +142,7 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 			</div>
 
 			<div className={styles.formGroup}>
-				<label>Mensaje (Opcional - puedes usar {"{{nombre}}"}):</label>
+				<label>Mensaje (Opcional — puedes usar {"{{nombre}}"})</label>
 				<textarea
 					className='textarea'
 					rows='3'
@@ -155,75 +153,63 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 			</div>
 
 			<div className={styles.formGroup}>
-				<label>Código HTML (Opcional):</label>
+				<label>Código HTML (Opcional)</label>
 				<textarea
 					className='textarea'
-					rows='8'
+					rows='7'
 					value={htmlContent}
 					onChange={(e) => setHtmlContent(e.target.value)}
 					placeholder='Pega tu HTML aquí...'
-					style={{ fontFamily: "monospace", fontSize: "12px" }}
 				/>
 			</div>
 
-			<div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+			<div className={styles.actionButtons}>
 				<button
 					className='btn btn-primary'
-					style={{ flex: 1, padding: "0.75rem" }}
+					style={{ flex: 1 }}
 					onClick={iniciarEnvio}
 					disabled={isSending}
 				>
 					{isSending ? (
 						<Activity
-							size={18}
+							size={16}
 							style={{
 								marginRight: "0.5rem",
 								animation: "spin 2s linear infinite",
 							}}
 						/>
 					) : (
-						<SendHorizontal size={18} style={{ marginRight: "0.5rem" }} />
+						<SendHorizontal size={16} style={{ marginRight: "0.5rem" }} />
 					)}
 					{isSending
-						? "Campaña en Curso (En Cola)..."
+						? "Campaña en Curso..."
 						: `Enviar a ${selectedContacts.length} Seleccionados`}
 				</button>
 
 				{isSending && (
 					<button
 						className='btn btn-outline'
-						style={{
-							padding: "0.75rem",
-							color: "#ef4444",
-							borderColor: "#ef4444",
-						}}
+						style={{ color: "#ef4444", borderColor: "#ef4444" }}
 						onClick={cancelarEnvio}
 					>
-						<XCircle size={18} style={{ marginRight: "0.5rem" }} /> Detener
+						<XCircle size={16} style={{ marginRight: "0.5rem" }} /> Detener
 					</button>
 				)}
 			</div>
 
-			{/* VERIFICADOR EN VIVO CON DETALLE DE ERRORES Y ADVERTENCIAS */}
+			{/* VERIFICADOR EN VIVO */}
 			{(isSending || status.total > 0) && (
 				<div className={styles.progressContainer}>
-					<div
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							fontSize: "0.875rem",
-							fontWeight: "bold",
-						}}
-					>
+					<div className={styles.progressHeader}>
 						<span>
 							Procesados: {status.enviados + status.errores} de {status.total}{" "}
 							{status.errores > 0 && (
-								<span style={{ color: "#ef4444" }}>
+								<span className={styles.errorText}>
 									({status.errores} fallidos)
 								</span>
 							)}
 						</span>
-						<span>{porcentaje}%</span>
+						<span className={styles.percentText}>{porcentaje}%</span>
 					</div>
 					<div className={styles.progressBarBg}>
 						<div
@@ -240,23 +226,19 @@ export default function CampaignForm({ selectedContacts, onClearSelection }) {
 						{ultimosLogs.map((log, i) => (
 							<li key={i}>
 								{log.email === "SISTEMA" && log.status !== "error" && (
-									<span style={{ color: "#2563eb", fontWeight: "500" }}>
-										ℹ️ {log.detalle}
-									</span>
+									<span className={styles.logSystem}>ℹ️ {log.detalle}</span>
 								)}
 								{log.email === "SISTEMA" && log.status === "error" && (
-									<span style={{ color: "#dc2626", fontWeight: "bold" }}>
-										{log.detalle}
-									</span>
+									<span className={styles.logSystemError}>{log.detalle}</span>
 								)}
 								{log.status === "ok" && log.email !== "SISTEMA" && (
-									<span style={{ color: "#16a34a" }}>
+									<span className={styles.logSuccess}>
 										✅ {log.email}{" "}
-										<span style={{ color: "#71717a" }}>{log.detalle}</span>
+										<span className={styles.logDetail}>{log.detalle}</span>
 									</span>
 								)}
 								{log.status === "error" && log.email !== "SISTEMA" && (
-									<span style={{ color: "#dc2626" }}>
+									<span className={styles.logError}>
 										❌ <strong>{log.email}</strong>: {log.detalle}
 									</span>
 								)}
