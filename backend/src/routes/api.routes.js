@@ -1,3 +1,4 @@
+// backend/src/routes/api.routes.js
 import { Router } from "express";
 import {
 	obtenerContactos,
@@ -15,22 +16,29 @@ import {
 	obtenerStatsResumen,
 	obtenerClicksDetalle,
 } from "../controllers/stats.controller.js";
+import {
+	requireAdminKey,
+	verificarAdminKey,
+} from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-// Contactos
-router.get("/contactos", obtenerContactos);
-router.post("/contactos-bulk", importarContactosBulk);
-router.delete("/contactos/:email", eliminarContacto);
+// Verificación de clave para desbloquear el modo Admin en el Frontend
+router.post("/verify-admin", verificarAdminKey);
 
-// Campañas y Cola
-router.post("/send-background", iniciarCampana);
-router.get("/status-envio", obtenerEstadoEnvio);
-router.post("/cancelar-envio", cancelarCampana);
-router.post("/limpiar-rebotes", limpiarRebotes);
+// Contactos (Protegido solo para ti)
+router.get("/contactos", requireAdminKey, obtenerContactos);
+router.post("/contactos-bulk", requireAdminKey, importarContactosBulk);
+router.delete("/contactos/:email", requireAdminKey, eliminarContacto);
 
-// Reportes y Estadísticas
-router.get("/reporte-envios", descargarReporteEnvios);
+// Campañas y Cola (Protegido solo para ti)
+router.post("/send-background", requireAdminKey, iniciarCampana);
+router.get("/status-envio", requireAdminKey, obtenerEstadoEnvio);
+router.post("/cancelar-envio", requireAdminKey, cancelarCampana);
+router.post("/limpiar-rebotes", requireAdminKey, limpiarRebotes);
+router.get("/reporte-envios", requireAdminKey, descargarReporteEnvios);
+
+// Estadísticas Públicas (Para Dashboard Visual y Tablas de Datos)
 router.get("/stats", obtenerStatsResumen);
 router.get("/clicks-detail", obtenerClicksDetalle);
 
