@@ -1,12 +1,13 @@
-import { Pool } from "pg";
+// backend/src/config/db.js
+import { Pool } from 'pg';
 
 export const pool = new Pool({
-	connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
 });
 
 export const initDB = async (onReadyCallback) => {
-	try {
-		await pool.query(`
+  try {
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS clicks (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255),
@@ -46,12 +47,15 @@ export const initDB = async (onReadyCallback) => {
                 subject TEXT NOT NULL,
                 base_html TEXT,
                 mensaje TEXT,
+                html_content TEXT,
                 total INT DEFAULT 0,
                 enviados INT DEFAULT 0,
                 errores INT DEFAULT 0,
                 estado VARCHAR(30) DEFAULT 'ACTIVA',
                 fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            ALTER TABLE cola_campanas ADD COLUMN IF NOT EXISTS html_content TEXT;
 
             CREATE TABLE IF NOT EXISTS cola_destinatarios (
                 id SERIAL PRIMARY KEY,
@@ -67,10 +71,10 @@ export const initDB = async (onReadyCallback) => {
             CREATE INDEX IF NOT EXISTS idx_historial_fecha_estado ON historial_envios(fecha, estado);
             CREATE INDEX IF NOT EXISTS idx_cola_dest_pendientes ON cola_destinatarios(campana_id, estado);
         `);
-		console.log("✅ PostgreSQL conectado, tablas e índices listos.");
+    console.log('✅ PostgreSQL conectado, tablas e índices listos.');
 
-		if (onReadyCallback) await onReadyCallback();
-	} catch (err) {
-		console.error("❌ Error conectando a PostgreSQL:", err.message);
-	}
+    if (onReadyCallback) await onReadyCallback();
+  } catch (err) {
+    console.error('❌ Error conectando a PostgreSQL:', err.message);
+  }
 };
