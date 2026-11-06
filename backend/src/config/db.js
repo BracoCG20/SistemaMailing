@@ -70,8 +70,22 @@ export const initDB = async (onReadyCallback) => {
             CREATE INDEX IF NOT EXISTS idx_historial_campana_email ON historial_envios(email, campana, estado);
             CREATE INDEX IF NOT EXISTS idx_historial_fecha_estado ON historial_envios(fecha, estado);
             CREATE INDEX IF NOT EXISTS idx_cola_dest_pendientes ON cola_destinatarios(campana_id, estado);
+
+            -- AUTO-LIMPIEZA DE REGISTROS CON DOBLE CODIFICACIÓN URL (%40, +, %3A%2F%2F)
+            UPDATE clicks
+            SET 
+                email = REPLACE(email, '%40', '@'),
+                campana = REPLACE(REPLACE(campana, '+-+', ' - '), '+', ' '),
+                nombre_enlace = REPLACE(nombre_enlace, '+', ' '),
+                original_url = REPLACE(REPLACE(original_url, 'https%3A%2F%2F', 'https://'), 'http%3A%2F%2F', 'http://')
+            WHERE email LIKE '%\%%'
+               OR campana LIKE '%+%'
+               OR original_url LIKE 'http%3A%2F%2F%'
+               OR original_url LIKE 'https%3A%2F%2F%';
         `);
-    console.log('✅ PostgreSQL conectado, tablas e índices listos.');
+    console.log(
+      '✅ PostgreSQL conectado, tablas listas y registros URL normalizados.',
+    );
 
     if (onReadyCallback) await onReadyCallback();
   } catch (err) {
