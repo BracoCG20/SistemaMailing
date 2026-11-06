@@ -18,7 +18,7 @@ import {
   esArtistaValido,
   esClickValido,
   obtenerNombreReal,
-} from '../../utils/campaigns.utils';
+} from '../../utils/campaigns.utils.js';
 import styles from './Dashboard.module.scss';
 
 const TOOLTIP_STYLE = {
@@ -44,7 +44,16 @@ export default function Dashboard() {
         const res = await fetch('/api/clicks-detail');
         const dataRaw = await res.json();
 
-        const data = dataRaw.filter(esClickValido);
+        // Filtramos clics válidos y opcionalmente excluimos campañas de prueba antiguas si lo deseas
+        const data = dataRaw.filter((item) => {
+          if (!esClickValido(item)) return false;
+
+          // EJEMPLO: Si quieres ocultar campañas de prueba viejas, descomenta la siguiente línea:
+          // if (item.campana.includes("Prueba")) return false;
+
+          return true;
+        });
+
         const agrupadoCampana = {};
         const agrupadoArtista = {};
 
@@ -95,7 +104,6 @@ export default function Dashboard() {
 
   return (
     <div className={styles.dashboard}>
-      {/* TARJETAS KPI ESTILO SHADCN */}
       <div className={styles.dashboardGrid}>
         <div className={styles.summaryCard}>
           <div className={styles.cardHeader}>
@@ -133,7 +141,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* GRÁFICOS */}
       <div className={styles.chartsGrid}>
         <div className={styles.chartContainer}>
           <div className={styles.chartHeader}>
@@ -145,7 +152,7 @@ export default function Dashboard() {
               <p className={styles.emptyChart}>Sin datos suficientes</p>
             ) : (
               <ResponsiveContainer
-                width='100%'
+                width='100%H'
                 height='100%'
               >
                 <BarChart
