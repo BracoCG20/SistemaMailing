@@ -1,11 +1,21 @@
+// backend/src/controllers/stats.controller.js
 import { pool } from "../config/db.js";
 import { NOMBRE_REMITENTE } from "../config/mailer.js";
 
 export const descargarReporteEnvios = async (req, res) => {
 	try {
 		const result = await pool.query(`
-            SELECT TO_CHAR(fecha, 'YYYY-MM-DD HH24:MI:SS') as fecha_envio, campana, nombre, email, estado, detalle
-            FROM historial_envios ORDER BY id DESC LIMIT 5000
+            SELECT 
+                TO_CHAR(h.fecha, 'YYYY-MM-DD HH24:MI:SS') as fecha_envio,
+                h.campana,
+                COALESCE(NULLIF(TRIM(h.nombre), ''), NULLIF(TRIM(co.nombre), ''), '') as nombre,
+                h.email,
+                h.estado,
+                h.detalle
+            FROM historial_envios h
+            LEFT JOIN contactos co ON LOWER(TRIM(h.email)) = LOWER(TRIM(co.email))
+            ORDER BY h.id DESC
+            LIMIT 5000
         `);
 		const header = ["Fecha", "Campaña", "Nombre", "Email", "Estado", "Detalle"];
 		const rows = result.rows.map((r) =>
@@ -47,13 +57,38 @@ export const obtenerStatsResumen = async (req, res) => {
 export const obtenerClicksDetalle = async (req, res) => {
 	try {
 		const result = await pool.query(`
-            SELECT c.email, co.nombre as usuario_nombre, c.original_url, c.campana, c.fecha, c.nombre_enlace 
-            FROM clicks c 
-            LEFT JOIN contactos co ON c.email = co.email 
+            SELECT 
+                c.email,
+                COALESCE(
+                    NULLIF(TRIM(co.nombre), ''),
+                    (
+                        SELECT NULLIF(TRIM(h.nombre), '')
+                        FROM historial_envios h
+                        WHERE LOWER(TRIM(h.email)) = LOWER(TRIM(c.email))
+                          AND NULLIF(TRIM(h.nombre), '') IS NOT NULL
+                        ORDER BY h.id DESC
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT NULLIF(TRIM(cd.nombre), '')
+                        FROM cola_destinatarios cd
+                        WHERE LOWER(TRIM(cd.email)) = LOWER(TRIM(c.email))
+                          AND NULLIF(TRIM(cd.nombre), '') IS NOT NULL
+                        ORDER BY cd.id DESC
+                        LIMIT 1
+                    )
+                ) AS usuario_nombre,
+                c.original_url,
+                c.campana,
+                c.fecha,
+                c.nombre_enlace
+            FROM clicks c
+            LEFT JOIN contactos co ON LOWER(TRIM(c.email)) = LOWER(TRIM(co.email))
             ORDER BY c.fecha DESC
         `);
 		res.json(result.rows);
-	} catch {
+	} catch (err) {
+		console.error("Error obteniendo detalle de clics:", err.message);
 		res.status(500).json({ error: "Error" });
 	}
 };
@@ -74,7 +109,7 @@ export const registrarClickYRedirigir = async (req, res) => {
 	try {
 		await pool.query(
 			`INSERT INTO clicks (email, original_url, campana, nombre_enlace) VALUES ($1, $2, $3, $4)`,
-			[email, url, campana, nombre_enlace || "Enlace"],
+			[email.trim(), url, campana, nombre_enlace || "Enlace"],
 		);
 	} catch (err) {
 		console.error(err.message);

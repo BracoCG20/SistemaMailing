@@ -13,10 +13,11 @@ import {
 	esCampanaValida,
 	esClickValido,
 	obtenerNombreReal,
-} from "../../utils/campaigns.utils";
+} from "../../utils/campaigns.utils.js";
 import styles from "./StatsTable.module.scss";
 
-const ITEMS_PER_PAGE = 30;
+const ITEMS_PER_PAGE_RESUMEN = 10;
+const ITEMS_PER_PAGE_DETALLE = 30; // 30 filas para Detalle por Usuario
 
 const formatearFecha = (fechaISO) => {
 	return new Date(fechaISO).toLocaleString("es-PE", {
@@ -26,6 +27,30 @@ const formatearFecha = (fechaISO) => {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+};
+
+// Si el contacto fue importado sin nombre en el Excel, extrae un nombre legible del correo
+const formatearNombreDesdeEmail = (nombreDB, email) => {
+	if (nombreDB && nombreDB.trim() !== "") {
+		return { texto: nombreDB.trim(), esInferido: false };
+	}
+	if (!email || !email.includes("@")) {
+		return { texto: "Sin Nombre", esInferido: true };
+	}
+	const localPart = email.split("@")[0];
+	const limpio = localPart
+		.replace(/[._-]+/g, " ")
+		.replace(/\d+/g, "")
+		.trim();
+
+	if (!limpio) return { texto: "Sin Nombre", esInferido: true };
+
+	const capitalizado = limpio
+		.split(/\s+/)
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+		.join(" ");
+
+	return { texto: capitalizado, esInferido: true };
 };
 
 export default function StatsTable() {
@@ -85,7 +110,6 @@ export default function StatsTable() {
 		});
 	};
 
-	// Agrupación memorizada para evitar recálculos al expandir filas o paginar
 	const arrayResumen = useMemo(() => {
 		const agrupados = stats.reduce((acc, curr) => {
 			if (!acc[curr.campana]) {
@@ -103,16 +127,17 @@ export default function StatsTable() {
 	}, [stats]);
 
 	const totalPagesResumen =
-		Math.ceil(arrayResumen.length / ITEMS_PER_PAGE) || 1;
+		Math.ceil(arrayResumen.length / ITEMS_PER_PAGE_RESUMEN) || 1;
 	const paginatedResumen = arrayResumen.slice(
-		(pageResumen - 1) * ITEMS_PER_PAGE,
-		pageResumen * ITEMS_PER_PAGE,
+		(pageResumen - 1) * ITEMS_PER_PAGE_RESUMEN,
+		pageResumen * ITEMS_PER_PAGE_RESUMEN,
 	);
 
-	const totalPagesDetalle = Math.ceil(detalles.length / ITEMS_PER_PAGE) || 1;
+	const totalPagesDetalle =
+		Math.ceil(detalles.length / ITEMS_PER_PAGE_DETALLE) || 1;
 	const paginatedDetalle = detalles.slice(
-		(pageDetalle - 1) * ITEMS_PER_PAGE,
-		pageDetalle * ITEMS_PER_PAGE,
+		(pageDetalle - 1) * ITEMS_PER_PAGE_DETALLE,
+		pageDetalle * ITEMS_PER_PAGE_DETALLE,
 	);
 
 	const exportarExcel = () => {
@@ -135,14 +160,20 @@ export default function StatsTable() {
 				XLSX.utils.book_append_sheet(wb, ws, "Resumen Clics");
 				XLSX.writeFile(wb, "Resumen_Clics.xlsx");
 			} else {
-				const dataPlana = detalles.map((d) => [
-					formatearFecha(d.fecha),
-					d.usuario_nombre || "Sin Nombre",
-					d.email,
-					d.campana,
-					d.nombre_enlace || "-",
-					d.original_url,
-				]);
+				const dataPlana = detalles.map((d) => {
+					const { texto } = formatearNombreDesdeEmail(
+						d.usuario_nombre,
+						d.email,
+					);
+					return [
+						formatearFecha(d.fecha),
+						texto,
+						d.email,
+						d.campana,
+						d.nombre_enlace || "-",
+						d.original_url,
+					];
+				});
 				dataPlana.unshift([
 					"Fecha y Hora",
 					"Usuario",
@@ -326,40 +357,53 @@ export default function StatsTable() {
 										</td>
 									</tr>
 								) : (
-									paginatedDetalle.map((row, i) => (
-										<tr key={i}>
-											<td className={styles.mutedCell}>
-												{formatearFecha(row.fecha)}
-											</td>
-											<td className={styles.userCell}>
-												{row.usuario_nombre || (
-													<span className={styles.noName}>Sin Nombre</span>
-												)}
-											</td>
-											<td className={styles.mutedCell}>{row.email}</td>
-											<td>{row.campana}</td>
-											<td className={styles.directorCell}>
-												{row.nombre_enlace || "-"}
-											</td>
-											<td>
-												<a
-													href={row.original_url}
-													target='_blank'
-													rel='noreferrer'
-													className={styles.urlLink}
-												>
-													{row.original_url}
-												</a>
-											</td>
-										</tr>
-									))
+									paginatedDetalle.map((row, i) => {
+										const usuarioInfo = formatearNombreDesdeEmail(
+											row.usuario_nombre,
+											row.email,
+										);
+										return (
+											<tr key={i}>
+												<td className={styles.mutedCell}>
+													{formatearFecha(row.fecha)}
+												</td>
+												<td className={styles.userCell}>
+													<span
+														className={
+															usuarioInfo.texto === "Sin Nombre"
+																? styles.noName
+																: ""
+														}
+													>
+														{usuarioInfo.texto}
+													</span>
+												</td>
+												<td className={styles.mutedCell}>{row.email}</td>
+												<td>{row.campana}</td>
+												<td className={styles.directorCell}>
+													{row.nombre_enlace || "-"}
+												</td>
+												<td>
+													<a
+														href={row.original_url}
+														target='_blank'
+														rel='noreferrer'
+														className={styles.urlLink}
+													>
+														{row.original_url}
+													</a>
+												</td>
+											</tr>
+										);
+									})
 								)}
 							</tbody>
 						</table>
 
 						<div className={styles.pagination}>
 							<span>
-								Página {pageDetalle} de {totalPagesDetalle}
+								Página {pageDetalle} de {totalPagesDetalle} ({detalles.length}{" "}
+								registros)
 							</span>
 							<div className={styles.pageControls}>
 								<button
