@@ -44,15 +44,7 @@ export default function Dashboard() {
 				const res = await fetch("/api/clicks-detail");
 				const dataRaw = await res.json();
 
-				// Filtramos clics válidos y opcionalmente excluimos campañas de prueba antiguas si lo deseas
-				const data = dataRaw.filter((item) => {
-					if (!esClickValido(item)) return false;
-
-					// EJEMPLO: Si quieres ocultar campañas de prueba viejas, descomenta la siguiente línea:
-					// if (item.campana.includes("Prueba")) return false;
-
-					return true;
-				});
+				const data = dataRaw.filter(esClickValido);
 
 				const agrupadoCampana = {};
 				const agrupadoArtista = {};
@@ -142,7 +134,7 @@ export default function Dashboard() {
 						{statsArtista.length === 0 ? (
 							<p className={styles.emptyChart}>Sin datos suficientes</p>
 						) : (
-							<ResponsiveContainer width='100%H' height='100%'>
+							<ResponsiveContainer width='100%' height='100%'>
 								<BarChart
 									data={statsArtista}
 									layout='vertical'

@@ -238,6 +238,21 @@ export default function StatsTable() {
 				</div>
 
 				<div className={styles.actions}>
+					{activeTab === "detalle" && (
+						<div className={styles.searchBox}>
+							<Search size={14} />
+							<input
+								type='text'
+								className='input'
+								placeholder='Buscar por usuario o correo...'
+								value={filtroDetalle}
+								onChange={(e) => {
+									setFiltroDetalle(e.target.value);
+									setPageDetalle(1);
+								}}
+							/>
+						</div>
+					)}
 					<button
 						className={`btn btn-outline ${styles.exportBtn}`}
 						onClick={exportarExcel}

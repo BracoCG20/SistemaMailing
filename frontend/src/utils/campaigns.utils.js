@@ -19,13 +19,22 @@ export const COLORES_GRAFICOS = [
 ];
 
 export const obtenerNombreReal = (url, nombreOriginal) => {
-	if (url && url.includes("simian.me/")) {
-		const urlId = url.split("simian.me/")[1]?.split("?")[0];
+	const urlDecodificada = url
+		? decodeURIComponent(url.replace(/\+/g, " "))
+		: "";
+
+	if (urlDecodificada && urlDecodificada.includes("simian.me/")) {
+		const urlId = urlDecodificada.split("simian.me/")[1]?.split("?")[0]?.trim();
 		if (urlId && MAPA_ARTISTAS[urlId]) {
 			return MAPA_ARTISTAS[urlId];
 		}
 	}
-	return nombreOriginal;
+
+	const limpio = (nombreOriginal || "").replace(/\+/g, " ").trim();
+	if (limpio.toLowerCase() === "guido barbosch") {
+		return "Guido Barbosh";
+	}
+	return limpio;
 };
 
 export const esCampanaValida = (campana) => {
