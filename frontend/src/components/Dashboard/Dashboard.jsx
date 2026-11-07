@@ -9,7 +9,6 @@ import {
 	ResponsiveContainer,
 	PieChart,
 	Pie,
-	Cell,
 } from "recharts";
 import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
@@ -63,9 +62,14 @@ export default function Dashboard() {
 					}
 				});
 
+				// Asignamos la propiedad `fill` directamente en los datos (estándar moderno de Recharts sin <Cell />)
 				const dataCampana = Object.entries(agrupadoCampana)
 					.map(([name, clics]) => ({ name, clics }))
-					.sort((a, b) => b.clics - a.clics);
+					.sort((a, b) => b.clics - a.clics)
+					.map((item, index) => ({
+						...item,
+						fill: COLORES_GRAFICOS[index % COLORES_GRAFICOS.length],
+					}));
 
 				const dataArtista = Object.entries(agrupadoArtista)
 					.map(([name, clics]) => ({ name, clics }))
@@ -184,14 +188,7 @@ export default function Dashboard() {
 										outerRadius={98}
 										paddingAngle={2}
 										dataKey='clics'
-									>
-										{statsCampana.map((_, index) => (
-											<Cell
-												key={`cell-${index}`}
-												fill={COLORES_GRAFICOS[index % COLORES_GRAFICOS.length]}
-											/>
-										))}
-									</Pie>
+									/>
 									<Tooltip contentStyle={TOOLTIP_STYLE} />
 								</PieChart>
 							</ResponsiveContainer>

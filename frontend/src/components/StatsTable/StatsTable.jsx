@@ -269,37 +269,6 @@ export default function StatsTable() {
 				</div>
 			</div>
 
-			{/* BARRA DE BÚSQUEDA EXCLUSIVA PARA DETALLE POR USUARIO */}
-			{activeTab === "detalle" && (
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "flex-end",
-						marginBottom: "0.75rem",
-					}}
-				>
-					<div className={styles.searchBox}>
-						<Search size={14} />
-						<input
-							type='text'
-							className='input'
-							placeholder='Buscar por usuario o correo...'
-							value={filtroDetalle}
-							onChange={(e) => {
-								setFiltroDetalle(e.target.value);
-								setPageDetalle(1);
-							}}
-							style={{
-								width: "260px",
-								fontSize: "0.75rem",
-								paddingLeft: "2rem",
-								height: "32px",
-							}}
-						/>
-					</div>
-				</div>
-			)}
-
 			<div className={styles.tableWrapper}>
 				{activeTab === "resumen" ? (
 					<>

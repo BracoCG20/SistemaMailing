@@ -1,13 +1,13 @@
 // backend/src/config/db.js
-import { Pool } from 'pg';
+import { Pool } from "pg";
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+	connectionString: process.env.DATABASE_URL,
 });
 
 export const initDB = async (onReadyCallback) => {
-  try {
-    await pool.query(`
+	try {
+		await pool.query(`
             CREATE TABLE IF NOT EXISTS clicks (
                 id SERIAL PRIMARY KEY,
                 email VARCHAR(255),
@@ -71,24 +71,37 @@ export const initDB = async (onReadyCallback) => {
             CREATE INDEX IF NOT EXISTS idx_historial_fecha_estado ON historial_envios(fecha, estado);
             CREATE INDEX IF NOT EXISTS idx_cola_dest_pendientes ON cola_destinatarios(campana_id, estado);
 
-            -- AUTO-LIMPIEZA DE REGISTROS CON DOBLE CODIFICACIÓN URL (%40, +, %3A%2F%2F)
+            -- 1. Eliminar clics basura de bots sin email válido
+            DELETE FROM clicks
+            WHERE email IS NULL
+               OR TRIM(email) = ''
+               OR email = 'null'
+               OR email = 'undefined';
+
+            -- 2. Normalizar completamente cualquier URL o parámetro con %2F, %3A, %40 o +
             UPDATE clicks
             SET 
-                email = REPLACE(email, '%40', '@'),
+                email = REPLACE(REPLACE(email, '%40', '@'), '+', ''),
                 campana = REPLACE(REPLACE(campana, '+-+', ' - '), '+', ' '),
                 nombre_enlace = REPLACE(nombre_enlace, '+', ' '),
-                original_url = REPLACE(REPLACE(original_url, 'https%3A%2F%2F', 'https://'), 'http%3A%2F%2F', 'http://')
+                original_url = REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(original_url, '%3A', ':'),
+                            '%3a', ':'
+                        ),
+                        '%2F', '/'
+                    ),
+                    '%2f', '/'
+                )
             WHERE email LIKE '%\%%'
                OR campana LIKE '%+%'
-               OR original_url LIKE 'http%3A%2F%2F%'
-               OR original_url LIKE 'https%3A%2F%2F%';
+               OR original_url LIKE '%\%%';
         `);
-    console.log(
-      '✅ PostgreSQL conectado, tablas listas y registros URL normalizados.',
-    );
+		console.log("✅ PostgreSQL conectado y URLs de clics 100% limpias.");
 
-    if (onReadyCallback) await onReadyCallback();
-  } catch (err) {
-    console.error('❌ Error conectando a PostgreSQL:', err.message);
-  }
+		if (onReadyCallback) await onReadyCallback();
+	} catch (err) {
+		console.error("❌ Error conectando a PostgreSQL:", err.message);
+	}
 };
