@@ -142,7 +142,7 @@ function App() {
 				{ wch: 20 },
 				{ wch: 30 },
 				{ wch: 15 },
-				{ wch: 40 },
+				{ wch: 75 },
 			];
 
 			XLSX.utils.book_append_sheet(wb, ws, "Reporte Envios");

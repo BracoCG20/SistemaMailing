@@ -1,5 +1,6 @@
 // backend/src/controllers/stats.controller.js
 import { pool } from "../config/db.js";
+import { sincronizarRebotesIMAP } from "../services/bounderReader.service.js";
 import { NOMBRE_REMITENTE } from "../config/mailer.js";
 
 const decodificarParametro = (valor = "") => {
@@ -66,6 +67,11 @@ const esBotDeSeguridad = (req) => {
 
 export const descargarReporteEnvios = async (req, res) => {
 	try {
+		// 1. Antes de exportar, sincronizamos por IMAP los rebotes reales de las campañas
+		const campanaEspecifica = req.query.campana || null;
+		await sincronizarRebotesIMAP(campanaEspecifica);
+
+		// 2. Consultamos el historial actualizado con los motivos detallados de cada rebote
 		const result = await pool.query(`
             SELECT 
                 TO_CHAR(h.fecha, 'YYYY-MM-DD HH24:MI:SS') as fecha_envio,
@@ -73,13 +79,25 @@ export const descargarReporteEnvios = async (req, res) => {
                 COALESCE(NULLIF(TRIM(h.nombre), ''), NULLIF(TRIM(co.nombre), ''), '') as nombre,
                 h.email,
                 h.estado,
-                h.detalle
+                CASE 
+                    WHEN h.estado = 'ENVIADO' AND (h.detalle IS NULL OR h.detalle = '') 
+                        THEN 'Entregado correctamente al servidor destino'
+                    ELSE h.detalle
+                END as detalle
             FROM historial_envios h
             LEFT JOIN contactos co ON LOWER(TRIM(h.email)) = LOWER(TRIM(co.email))
             ORDER BY h.id DESC
             LIMIT 5000
         `);
-		const header = ["Fecha", "Campaña", "Nombre", "Email", "Estado", "Detalle"];
+
+		const header = [
+			"Fecha",
+			"Campaña",
+			"Nombre",
+			"Email",
+			"Estado de recepción",
+			"Diagnóstico / Motivo detallado",
+		];
 		const rows = result.rows.map((r) =>
 			[
 				`"${r.fecha_envio}"`,
@@ -97,7 +115,8 @@ export const descargarReporteEnvios = async (req, res) => {
 			'attachment; filename="reporte_envios.csv"',
 		);
 		res.send("\uFEFF" + csvContent);
-	} catch {
+	} catch (err) {
+		console.error("Error generando reporte:", err.message);
 		res.status(500).send("Error generando reporte");
 	}
 };
