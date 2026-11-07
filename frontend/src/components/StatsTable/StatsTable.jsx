@@ -4,6 +4,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	FileDown,
+	Filter,
 	RefreshCcw,
 	Search,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import {
 	esCampanaValida,
 	esClickValido,
 	obtenerNombreReal,
+	sanitizarNombreHojaExcel,
 } from "../../utils/campaigns.utils.js";
 import styles from "./StatsTable.module.scss";
 
@@ -59,9 +61,10 @@ export default function StatsTable() {
 	const [detalles, setDetalles] = useState([]);
 	const [loading, setLoading] = useState(true);
 
+	const [campanaSeleccionada, setCampanaSeleccionada] = useState("TODAS");
 	const [pageResumen, setPageResumen] = useState(1);
 	const [pageDetalle, setPageDetalle] = useState(1);
-	const [filtroDetalle, setFiltroDetalle] = useState(""); // <-- NUEVO BUSCADOR DE USUARIOS
+	const [filtroDetalle, setFiltroDetalle] = useState("");
 	const [expandedCampaigns, setExpandedCampaigns] = useState(new Set());
 
 	const cargarDatos = async () => {
@@ -100,7 +103,6 @@ export default function StatsTable() {
 		setActiveTab(tab);
 		setPageResumen(1);
 		setPageDetalle(1);
-		setFiltroDetalle("");
 	};
 
 	const toggleExpand = (campana) => {
@@ -112,8 +114,22 @@ export default function StatsTable() {
 		});
 	};
 
+	// Lista de campañas únicas para el selector
+	const listaCampanas = useMemo(() => {
+		const unicas = new Set([
+			...stats.map((s) => s.campana),
+			...detalles.map((d) => d.campana),
+		]);
+		return Array.from(unicas);
+	}, [stats, detalles]);
+
 	const arrayResumen = useMemo(() => {
-		const agrupados = stats.reduce((acc, curr) => {
+		const statsBase =
+			campanaSeleccionada === "TODAS"
+				? stats
+				: stats.filter((s) => s.campana === campanaSeleccionada);
+
+		const agrupados = statsBase.reduce((acc, curr) => {
 			if (!acc[curr.campana]) {
 				acc[curr.campana] = { totalClicks: 0, enlaces: [] };
 			}
@@ -126,13 +142,18 @@ export default function StatsTable() {
 			campana,
 			...data,
 		}));
-	}, [stats]);
+	}, [stats, campanaSeleccionada]);
 
-	// Filtrar detalles por nombre o correo
+	// Filtrar detalles por campaña seleccionada + búsqueda por usuario/correo
 	const detallesFiltrados = useMemo(() => {
-		if (!filtroDetalle.trim()) return detalles;
+		const porCampana =
+			campanaSeleccionada === "TODAS"
+				? detalles
+				: detalles.filter((d) => d.campana === campanaSeleccionada);
+
+		if (!filtroDetalle.trim()) return porCampana;
 		const query = filtroDetalle.toLowerCase();
-		return detalles.filter((d) => {
+		return porCampana.filter((d) => {
 			const { texto: nombreFormateado } = formatearNombreDesdeEmail(
 				d.usuario_nombre,
 				d.email,
@@ -140,10 +161,10 @@ export default function StatsTable() {
 			return (
 				nombreFormateado.toLowerCase().includes(query) ||
 				d.email.toLowerCase().includes(query) ||
-				d.campana.toLowerCase().includes(query)
+				(d.nombre_enlace && d.nombre_enlace.toLowerCase().includes(query))
 			);
 		});
-	}, [detalles, filtroDetalle]);
+	}, [detalles, campanaSeleccionada, filtroDetalle]);
 
 	const totalPagesResumen =
 		Math.ceil(arrayResumen.length / ITEMS_PER_PAGE_RESUMEN) || 1;
@@ -162,55 +183,123 @@ export default function StatsTable() {
 	const exportarExcel = () => {
 		try {
 			const wb = XLSX.utils.book_new();
+			const hojasUsadas = new Set();
 
 			if (activeTab === "resumen") {
-				const dataPlana = stats.map((s) => [
-					s.campana,
-					s.original_url,
-					s.click_count,
-				]);
-				dataPlana.unshift([
-					"Campaña",
-					"Destino (URL Original)",
-					"Cantidad Clics",
-				]);
-				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
-				ws["!cols"] = [{ wch: 25 }, { wch: 50 }, { wch: 15 }];
-				XLSX.utils.book_append_sheet(wb, ws, "Resumen Clics");
-				XLSX.writeFile(wb, "Resumen_Clics.xlsx");
+				const statsExportar =
+					campanaSeleccionada === "TODAS"
+						? stats
+						: stats.filter((s) => s.campana === campanaSeleccionada);
+
+				const armarHojaResumen = (filas) => {
+					const dataPlana = filas.map((s) => [
+						s.campana,
+						obtenerNombreReal(s.original_url, ""),
+						s.original_url,
+						Number(s.click_count),
+					]);
+					dataPlana.unshift([
+						"Campaña",
+						"Director / Enlace",
+						"Destino (URL Original)",
+						"Cantidad Clics",
+					]);
+					const ws = XLSX.utils.aoa_to_sheet(dataPlana);
+					ws["!cols"] = [{ wch: 28 }, { wch: 25 }, { wch: 50 }, { wch: 15 }];
+					return ws;
+				};
+
+				XLSX.utils.book_append_sheet(
+					wb,
+					armarHojaResumen(statsExportar),
+					sanitizarNombreHojaExcel(
+						campanaSeleccionada === "TODAS"
+							? "Resumen Global"
+							: campanaSeleccionada,
+						hojasUsadas,
+					),
+				);
+
+				// Si exporta TODAS y hay más de 1 campaña, crea una pestaña individual por cada campaña
+				if (campanaSeleccionada === "TODAS" && listaCampanas.length > 1) {
+					listaCampanas.forEach((camp) => {
+						const sub = stats.filter((s) => s.campana === camp);
+						if (sub.length > 0) {
+							XLSX.utils.book_append_sheet(
+								wb,
+								armarHojaResumen(sub),
+								sanitizarNombreHojaExcel(camp, hojasUsadas),
+							);
+						}
+					});
+				}
+
+				XLSX.writeFile(wb, "Resumen_Clics_Campanas.xlsx");
 			} else {
-				const dataPlana = detallesFiltrados.map((d) => {
-					const { texto } = formatearNombreDesdeEmail(
-						d.usuario_nombre,
-						d.email,
-					);
-					return [
-						formatearFecha(d.fecha),
-						texto,
-						d.email,
-						d.campana,
-						d.nombre_enlace || "-",
-						d.original_url,
+				const armarHojaDetalle = (filas) => {
+					const dataPlana = filas.map((d) => {
+						const { texto } = formatearNombreDesdeEmail(
+							d.usuario_nombre,
+							d.email,
+						);
+						return [
+							formatearFecha(d.fecha),
+							texto,
+							d.email,
+							d.campana,
+							d.nombre_enlace || "-",
+							d.original_url,
+						];
+					});
+					dataPlana.unshift([
+						"Fecha y Hora",
+						"Usuario",
+						"Correo",
+						"Campaña",
+						"Director / Enlace",
+						"URL Visitada",
+					]);
+					const ws = XLSX.utils.aoa_to_sheet(dataPlana);
+					ws["!cols"] = [
+						{ wch: 20 },
+						{ wch: 25 },
+						{ wch: 32 },
+						{ wch: 28 },
+						{ wch: 25 },
+						{ wch: 50 },
 					];
-				});
-				dataPlana.unshift([
-					"Fecha y Hora",
-					"Usuario",
-					"Correo",
-					"Campaña",
-					"Director / Enlace",
-					"URL Visitada",
-				]);
-				const ws = XLSX.utils.aoa_to_sheet(dataPlana);
-				ws["!cols"] = [
-					{ wch: 20 },
-					{ wch: 25 },
-					{ wch: 30 },
-					{ wch: 25 },
-					{ wch: 25 },
-					{ wch: 50 },
-				];
-				XLSX.utils.book_append_sheet(wb, ws, "Detalle Usuarios");
+					return ws;
+				};
+
+				XLSX.utils.book_append_sheet(
+					wb,
+					armarHojaDetalle(detallesFiltrados),
+					sanitizarNombreHojaExcel(
+						campanaSeleccionada === "TODAS"
+							? "Todos los Clics"
+							: campanaSeleccionada,
+						hojasUsadas,
+					),
+				);
+
+				// Si está en TODAS y no hay filtro de texto, añade una pestaña por cada campaña
+				if (
+					campanaSeleccionada === "TODAS" &&
+					!filtroDetalle.trim() &&
+					listaCampanas.length > 1
+				) {
+					listaCampanas.forEach((camp) => {
+						const sub = detalles.filter((d) => d.campana === camp);
+						if (sub.length > 0) {
+							XLSX.utils.book_append_sheet(
+								wb,
+								armarHojaDetalle(sub),
+								sanitizarNombreHojaExcel(camp, hojasUsadas),
+							);
+						}
+					});
+				}
+
 				XLSX.writeFile(wb, "Detalle_Clics_Usuarios.xlsx");
 			}
 			toast.success("Excel descargado correctamente");
@@ -238,6 +327,29 @@ export default function StatsTable() {
 				</div>
 
 				<div className={styles.actions}>
+					{/* SELECTOR DE CAMPAÑA */}
+					<div className={styles.campaignFilterBox}>
+						<Filter size={13} />
+						<select
+							value={campanaSeleccionada}
+							onChange={(e) => {
+								setCampanaSeleccionada(e.target.value);
+								setPageResumen(1);
+								setPageDetalle(1);
+							}}
+						>
+							<option value='TODAS'>
+								Todas las campañas ({listaCampanas.length})
+							</option>
+							{listaCampanas.map((camp) => (
+								<option key={camp} value={camp}>
+									{camp}
+								</option>
+							))}
+						</select>
+					</div>
+
+					{/* BUSCADOR DE USUARIO */}
 					{activeTab === "detalle" && (
 						<div className={styles.searchBox}>
 							<Search size={14} />
@@ -253,6 +365,7 @@ export default function StatsTable() {
 							/>
 						</div>
 					)}
+
 					<button
 						className={`btn btn-outline ${styles.exportBtn}`}
 						onClick={exportarExcel}

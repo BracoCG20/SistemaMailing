@@ -12,7 +12,8 @@ export const MAPA_ARTISTAS = {
 export const COLORES_GRAFICOS = [
 	"#18181b",
 	"#107c41",
-	"#3f3f46",
+	"#2563eb",
+	"#eab308",
 	"#71717a",
 	"#a1a1aa",
 	"#d4d4d8",
@@ -34,6 +35,17 @@ export const obtenerNombreReal = (url, nombreOriginal) => {
 	if (limpio.toLowerCase() === "guido barbosch") {
 		return "Guido Barbosh";
 	}
+
+	if (!limpio || limpio === "Enlace" || limpio === "Enlace sin nombre") {
+		try {
+			const parsed = new URL(urlDecodificada);
+			const path = parsed.pathname.replace(/^\/+|\/+$/g, "");
+			return path ? `${parsed.hostname}/${path}` : parsed.hostname;
+		} catch {
+			return urlDecodificada || "Enlace";
+		}
+	}
+
 	return limpio;
 };
 
@@ -63,4 +75,27 @@ export const esArtistaValido = (artista) => {
 		!lower.includes("instagram") &&
 		!lower.includes("linkedin")
 	);
+};
+
+// Limpia el nombre de una campaña para que Excel lo acepte como pestaña (máx 31 caracteres, sin símbolos prohibidos)
+export const sanitizarNombreHojaExcel = (
+	nombre = "Campaña",
+	usados = new Set(),
+) => {
+	let base = nombre
+		.replace(/[:\\/?*[\]]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 28);
+
+	if (!base) base = "Campana";
+
+	let finalName = base;
+	let contador = 2;
+	while (usados.has(finalName.toLowerCase())) {
+		finalName = `${base.slice(0, 25)} (${contador})`;
+		contador++;
+	}
+	usados.add(finalName.toLowerCase());
+	return finalName;
 };

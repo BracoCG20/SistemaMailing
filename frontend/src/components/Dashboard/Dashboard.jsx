@@ -1,5 +1,5 @@
 // frontend/src/components/Dashboard/Dashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
 	BarChart,
 	Bar,
@@ -10,7 +10,7 @@ import {
 	PieChart,
 	Pie,
 } from "recharts";
-import { MousePointerClick, TrendingUp, Trophy } from "lucide-react";
+import { Filter, MousePointerClick, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import {
 	COLORES_GRAFICOS,
@@ -28,13 +28,8 @@ const TOOLTIP_STYLE = {
 };
 
 export default function Dashboard() {
-	const [statsCampana, setStatsCampana] = useState([]);
-	const [statsArtista, setStatsArtista] = useState([]);
-	const [totales, setTotales] = useState({
-		clics: 0,
-		campanas: 0,
-		mejorArtista: "-",
-	});
+	const [allClicks, setAllClicks] = useState([]);
+	const [selectedCampaign, setSelectedCampaign] = useState("TODAS");
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
@@ -42,48 +37,8 @@ export default function Dashboard() {
 			try {
 				const res = await fetch("/api/clicks-detail");
 				const dataRaw = await res.json();
-
-				const data = dataRaw.filter(esClickValido);
-
-				const agrupadoCampana = {};
-				const agrupadoArtista = {};
-
-				data.forEach((item) => {
-					agrupadoCampana[item.campana] =
-						(agrupadoCampana[item.campana] || 0) + 1;
-
-					const artista = obtenerNombreReal(
-						item.original_url,
-						item.nombre_enlace,
-					);
-
-					if (esArtistaValido(artista)) {
-						agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
-					}
-				});
-
-				// Asignamos la propiedad `fill` directamente en los datos (estándar moderno de Recharts sin <Cell />)
-				const dataCampana = Object.entries(agrupadoCampana)
-					.map(([name, clics]) => ({ name, clics }))
-					.sort((a, b) => b.clics - a.clics)
-					.map((item, index) => ({
-						...item,
-						fill: COLORES_GRAFICOS[index % COLORES_GRAFICOS.length],
-					}));
-
-				const dataArtista = Object.entries(agrupadoArtista)
-					.map(([name, clics]) => ({ name, clics }))
-					.sort((a, b) => b.clics - a.clics)
-					.slice(0, 7);
-
-				setStatsCampana(dataCampana);
-				setStatsArtista(dataArtista);
-				setTotales({
-					clics: data.length,
-					campanas: dataCampana.length,
-					mejorArtista:
-						dataArtista.length > 0 ? dataArtista[0].name : "Ninguno",
-				});
+				const dataLimpia = dataRaw.filter(esClickValido);
+				setAllClicks(dataLimpia);
 			} catch {
 				toast.error("Error cargando el dashboard");
 			} finally {
@@ -94,16 +49,126 @@ export default function Dashboard() {
 		cargarMetricas();
 	}, []);
 
+	// Lista única de campañas disponibles para el selector
+	const listaCampanas = useMemo(() => {
+		const unicas = new Set(allClicks.map((item) => item.campana));
+		return Array.from(unicas);
+	}, [allClicks]);
+
+	// Recálculo reactivo según la campaña seleccionada
+	const { statsCampana, statsArtista, totales } = useMemo(() => {
+		const filtrados =
+			selectedCampaign === "TODAS"
+				? allClicks
+				: allClicks.filter((item) => item.campana === selectedCampaign);
+
+		const agrupadoCampana = {};
+		const agrupadoArtista = {};
+
+		filtrados.forEach((item) => {
+			agrupadoCampana[item.campana] = (agrupadoCampana[item.campana] || 0) + 1;
+
+			const artista = obtenerNombreReal(item.original_url, item.nombre_enlace);
+
+			if (esArtistaValido(artista)) {
+				agrupadoArtista[artista] = (agrupadoArtista[artista] || 0) + 1;
+			}
+		});
+
+		const dataCampana = Object.entries(agrupadoCampana)
+			.map(([name, clics]) => ({ name, clics }))
+			.sort((a, b) => b.clics - a.clics)
+			.map((item, index) => ({
+				...item,
+				fill: COLORES_GRAFICOS[index % COLORES_GRAFICOS.length],
+			}));
+
+		const dataArtista = Object.entries(agrupadoArtista)
+			.map(([name, clics]) => ({ name, clics }))
+			.sort((a, b) => b.clics - a.clics)
+			.slice(0, 7);
+
+		return {
+			statsCampana: dataCampana,
+			statsArtista: dataArtista,
+			totales: {
+				clics: filtrados.length,
+				campanas:
+					selectedCampaign === "TODAS"
+						? listaCampanas.length
+						: filtrados.length > 0
+							? 1
+							: 0,
+				mejorArtista: dataArtista.length > 0 ? dataArtista[0].name : "Ninguno",
+			},
+		};
+	}, [allClicks, selectedCampaign, listaCampanas.length]);
+
 	if (loading) {
 		return <p className={styles.loadingState}>Cargando métricas...</p>;
 	}
 
 	return (
 		<div className={styles.dashboard}>
+			{/* BARRA DE FILTRO POR CAMPAÑA */}
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "flex-end",
+					alignItems: "center",
+					gap: "0.5rem",
+					marginBottom: "1rem",
+				}}
+			>
+				<div
+					style={{
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "0.5rem",
+						backgroundColor: "var(--card)",
+						border: "1px solid var(--border)",
+						borderRadius: "var(--radius)",
+						padding: "0.35rem 0.75rem",
+						fontSize: "0.75rem",
+					}}
+				>
+					<Filter size={14} color='var(--muted-foreground)' />
+					<span style={{ color: "var(--muted-foreground)", fontWeight: 500 }}>
+						Campaña:
+					</span>
+					<select
+						value={selectedCampaign}
+						onChange={(e) => setSelectedCampaign(e.target.value)}
+						style={{
+							border: "none",
+							background: "transparent",
+							fontSize: "0.75rem",
+							fontWeight: 600,
+							color: "var(--foreground)",
+							cursor: "pointer",
+							outline: "none",
+						}}
+					>
+						<option value='TODAS'>
+							Todas las campañas ({listaCampanas.length})
+						</option>
+						{listaCampanas.map((camp) => (
+							<option key={camp} value={camp}>
+								{camp}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
 			<div className={styles.dashboardGrid}>
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
-						<span>Clics Totales Históricos</span>
+						<span>
+							{selectedCampaign === "TODAS"
+								? "Clics Totales Históricos"
+								: "Clics de la Campaña"}
+						</span>
 						<MousePointerClick size={16} color='var(--primary)' />
 					</div>
 					<span className={styles.cardValue}>{totales.clics}</span>
@@ -119,7 +184,7 @@ export default function Dashboard() {
 
 				<div className={styles.summaryCard}>
 					<div className={styles.cardHeader}>
-						<span>Director más visto</span>
+						<span>Director / Enlace más visto</span>
 						<Trophy size={16} color='#eab308' />
 					</div>
 					<span className={`${styles.cardValue} ${styles.cardHighlight}`}>
@@ -131,8 +196,12 @@ export default function Dashboard() {
 			<div className={styles.chartsGrid}>
 				<div className={styles.chartContainer}>
 					<div className={styles.chartHeader}>
-						<h3>Ranking de Directores por Clics</h3>
-						<p>Top 7 enlaces de portafolio más visitados</p>
+						<h3>Ranking de Enlaces por Clics</h3>
+						<p>
+							{selectedCampaign === "TODAS"
+								? "Top 7 enlaces más visitados globalmente"
+								: `Top enlaces en "${selectedCampaign}"`}
+						</p>
 					</div>
 					<div className={styles.chartBody}>
 						{statsArtista.length === 0 ? (

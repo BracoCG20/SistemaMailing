@@ -24,6 +24,7 @@ import {
 	getAdminKey,
 	setAdminKey,
 } from "./utils/auth.utils.js";
+import { sanitizarNombreHojaExcel } from "./utils/campaigns.utils.js";
 
 const NAV_ITEMS = [
 	{
@@ -123,31 +124,67 @@ function App() {
 
 	const descargarReporteExcel = async () => {
 		try {
-			toast.info("Generando reporte Excel...");
+			toast.info("Sincronizando rebotes y generando Excel por campaña...");
 			const res = await authFetch("/api/reporte-envios");
 			if (!res.ok) throw new Error("No autorizado");
 			const csvText = await res.text();
 
-			const rows = csvText.split("\n").map((row) => {
-				const valores = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-				return valores.map((v) => v.replace(/^"|"$/g, "").trim());
-			});
+			const rows = csvText
+				.replace(/^\uFEFF/, "")
+				.split("\n")
+				.filter((line) => line.trim() !== "")
+				.map((row) => {
+					const valores = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+					return valores.map((v) => v.replace(/^"|"$/g, "").trim());
+				});
 
-			const wb = XLSX.utils.book_new();
-			const ws = XLSX.utils.aoa_to_sheet(rows);
+			if (rows.length <= 1) {
+				return toast.warning("No hay registros de envío para exportar.");
+			}
 
-			ws["!cols"] = [
-				{ wch: 22 },
-				{ wch: 25 },
-				{ wch: 20 },
-				{ wch: 30 },
-				{ wch: 15 },
-				{ wch: 75 },
+			const header = rows[0];
+			const dataRows = rows.slice(1);
+
+			const colWidths = [
+				{ wch: 20 }, // Fecha
+				{ wch: 28 }, // Campaña
+				{ wch: 25 }, // Nombre
+				{ wch: 32 }, // Email
+				{ wch: 18 }, // Estado de recepción
+				{ wch: 75 }, // Diagnóstico / Motivo detallado
 			];
 
-			XLSX.utils.book_append_sheet(wb, ws, "Reporte Envios");
+			const wb = XLSX.utils.book_new();
+			const hojasUsadas = new Set();
+
+			// 1. Hoja General con todos los envíos
+			const wsGeneral = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+			wsGeneral["!cols"] = colWidths;
+			XLSX.utils.book_append_sheet(
+				wb,
+				wsGeneral,
+				sanitizarNombreHojaExcel("Todos los Envios", hojasUsadas),
+			);
+
+			// 2. Pestaña (hoja) separada por cada Campaña
+			const porCampana = {};
+			dataRows.forEach((fila) => {
+				const nombreCampana = fila[1] || "Sin Campaña";
+				if (!porCampana[nombreCampana]) {
+					porCampana[nombreCampana] = [];
+				}
+				porCampana[nombreCampana].push(fila);
+			});
+
+			Object.entries(porCampana).forEach(([nombreCampana, filasCampana]) => {
+				const wsCampana = XLSX.utils.aoa_to_sheet([header, ...filasCampana]);
+				wsCampana["!cols"] = colWidths;
+				const sheetName = sanitizarNombreHojaExcel(nombreCampana, hojasUsadas);
+				XLSX.utils.book_append_sheet(wb, wsCampana, sheetName);
+			});
+
 			XLSX.writeFile(wb, "Reporte_Envios_Profesional.xlsx");
-			toast.success("Excel descargado correctamente.");
+			toast.success("Excel descargado con pestañas por campaña.");
 		} catch {
 			toast.error("Error al generar el archivo Excel.");
 		}
